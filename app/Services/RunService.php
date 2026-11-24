@@ -209,22 +209,37 @@ class RunService
 
         $quiz = $run->quiz;
         $questions = $quiz->questions()->get()->keyBy('id');
+        $questionOrder = array_map('intval', $run->question_order ?? []);
         $totalQuestions = count($run->question_order);
+
+        if (count($answers) > $totalQuestions) {
+            return ['error' => 'The answer log is invalid.'];
+        }
 
         $reached = 0;
         $finalStatus = 'passed';
         $finalReason = null;
         $failedAtAnswer = null;
         $runAnswersData = [];
+        $seenQuestionIds = [];
 
-        foreach ($answers as $entry) {
-            $questionId = $entry['question_id'];
+        foreach (array_values($answers) as $position => $entry) {
+            $questionId = (int) ($entry['question_id'] ?? 0);
             $chosenIndex = $entry['chosen_option_index'] ?? null;
             $clientReason = $entry['reason'] ?? null;
-            $timeMs = $entry['time_ms'] ?? 0;
+            $timeMs = max(0, (int) ($entry['time_ms'] ?? 0));
 
+            if (
+                !isset($questionOrder[$position])
+                || $questionOrder[$position] !== $questionId
+                || isset($seenQuestionIds[$questionId])
+                || !in_array($clientReason, [null, 'timeout', 'focus_lost'], true)
+            ) {
+                return ['error' => 'The answer log is invalid.'];
+            }
+
+            $seenQuestionIds[$questionId] = true;
             $question = $questions->get($questionId);
-            if (!$question) continue;
 
             if ($clientReason === 'focus_lost') {
                 $finalStatus = 'failed';
@@ -241,7 +256,13 @@ class RunService
                 break;
             }
 
-            if ($clientReason === 'timeout' || $chosenIndex === null) {
+            if (
+                $clientReason === 'timeout'
+                || $chosenIndex === null
+                || !is_int($chosenIndex) && !ctype_digit((string) $chosenIndex)
+                || (int) $chosenIndex < 0
+                || (int) $chosenIndex > 3
+            ) {
                 $finalStatus = 'failed';
                 $finalReason = 'timeout';
                 $failedAtAnswer = [
@@ -256,6 +277,7 @@ class RunService
                 break;
             }
 
+            $chosenIndex = (int) $chosenIndex;
             $isCorrect = $chosenIndex === $question->correct_option_index;
 
             $runAnswersData[] = [
@@ -277,7 +299,11 @@ class RunService
             $reached++;
         }
 
-        return DB::transaction(function () use ($run, $runAnswersData, $failedAtAnswer, $finalStatus, $finalReason, $reached, $totalQuestions) {
+        if ($finalStatus === 'passed' && $reached !== $totalQuestions) {
+            return ['error' => 'The answer log is incomplete.'];
+        }
+
+        return DB::transaction(function () use ($run, $runAnswersData, $failedAtAnswer, $finalStatus, $finalReason, $reached) {
             foreach ($runAnswersData as $answerData) {
                 RunAnswer::create($answerData);
             }

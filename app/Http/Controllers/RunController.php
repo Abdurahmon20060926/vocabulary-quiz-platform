@@ -107,9 +107,13 @@ class RunController extends Controller
         }
 
         $answers = $request->input('answers', []);
+        if (!is_array($answers)) {
+            return response()->json(['error' => 'Answers must be an array.'], 422);
+        }
+
         $result = $this->runService->submitCasualRun($run, $answers);
 
-        return response()->json($result);
+        return response()->json($result, isset($result['error']) ? 422 : 200);
     }
 
     private function authorizeRun(Request $request, QuizRun $run): bool
@@ -132,13 +136,10 @@ class RunController extends Controller
 
     private function getOrCreateGuestToken(Request $request): string
     {
-        $token = $request->cookie('guest_token');
+        $token = $request->cookie('guest_token') ?: $request->attributes->get('guest_token');
         if (!$token) {
             $token = bin2hex(random_bytes(32));
         }
-        // Set cookie in response via header - handled by middleware setting the cookie
-        // Store in request for use
-        $request->merge(['_guest_token_new' => $token]);
         return $token;
     }
 }

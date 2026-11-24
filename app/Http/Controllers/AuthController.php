@@ -12,7 +12,13 @@ class AuthController extends Controller
 {
     public function redirectToGoogle(): RedirectResponse
     {
-        return Socialite::driver('google')->redirect();
+        try {
+            return Socialite::driver('google')->redirect();
+        } catch (\Throwable) {
+            return redirect('/')->withErrors([
+                'auth' => 'Google sign-in is not configured. Set the Google OAuth credentials to enable sign-in.',
+            ]);
+        }
     }
 
     public function handleGoogleCallback(Request $request): RedirectResponse

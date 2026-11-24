@@ -10,14 +10,20 @@ class GuestTokenMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $guestToken = $request->cookie('guest_token');
+
+        if (!$request->user() && !$guestToken) {
+            $guestToken = bin2hex(random_bytes(32));
+            $request->attributes->set('guest_token', $guestToken);
+        }
+
         $response = $next($request);
 
         // Set a persistent guest_token cookie for non-authenticated users
-        if (!$request->user() && !$request->cookie('guest_token')) {
-            $token = bin2hex(random_bytes(32));
+        if (!$request->user() && $guestToken && !$request->cookie('guest_token')) {
             $response->cookie(
                 'guest_token',
-                $token,
+                $guestToken,
                 60 * 24 * 365, // 1 year
                 '/',
                 null,

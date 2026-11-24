@@ -7,7 +7,13 @@ export default defineConfig({
   plugins: [
     laravel({
       input: ['resources/css/app.css', 'resources/js/app.ts'],
-      refresh: true,
+      refresh: [
+        'resources/js/**',
+        'resources/css/**',
+        'resources/views/**',
+        'routes/**',
+        'app/Http/Controllers/**',
+      ],
     }),
     vue({
       template: {
@@ -18,6 +24,18 @@ export default defineConfig({
       },
     }),
     tailwindcss(),
+    // Wayfinder: auto-generate typed routes on each build
+    {
+      name: 'wayfinder-generate',
+      buildStart() {
+        const { execSync } = require('child_process')
+        try {
+          execSync('php8.3 artisan wayfinder:generate', { stdio: 'ignore' })
+        } catch {
+          try { execSync('php artisan wayfinder:generate', { stdio: 'ignore' }) } catch {}
+        }
+      },
+    },
   ],
   resolve: {
     alias: {

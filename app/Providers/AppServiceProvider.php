@@ -16,7 +16,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('runs', function (Request $request) {
             $key = $request->user()
                 ? 'runs:user:' . $request->user()->id
-                : 'runs:guest:' . ($request->cookie('guest_token') ?? $request->ip());
+                : 'runs:guest:' . ($request->cookie('guest_token') ?? 'new') . ':' . $request->ip();
 
             return Limit::perMinute(30)->by($key);
         });

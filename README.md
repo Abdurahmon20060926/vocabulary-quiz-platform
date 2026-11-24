@@ -67,68 +67,9 @@ Visit http://localhost:8000
 
 ## Production Deployment
 
-### On a VPS (recommended: DigitalOcean, Hetzner, etc.)
-
-```bash
-# Install PHP 8.3, PostgreSQL, Nginx, Node.js
-
-# Clone repo
-git clone <repo> /var/www/quizapp
-cd /var/www/quizapp
-
-# Configure environment
-cp .env.example .env
-# Set APP_ENV=production, APP_DEBUG=false, APP_URL=https://yourdomain.com
-# Set all DB_ and GOOGLE_ variables
-php artisan key:generate
-
-# Install dependencies
-composer install --no-dev --optimize-autoloader
-npm ci
-npm run build
-
-# Database
-php artisan migrate --force
-php artisan db:seed --force  # optional demo data
-
-# Optimize
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-
-# Set permissions
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R 775 storage bootstrap/cache
-```
-
-**Nginx config:**
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-    root /var/www/quizapp/public;
-    index index.php;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-}
-```
-
-### Railway / Render / Fly.io
-
-Set all environment variables from `.env.example` in the platform dashboard. The build command is:
-```
-composer install --no-dev && npm ci && npm run build && php artisan migrate --force
-```
-
-Start command: `php artisan serve --host=0.0.0.0 --port=$PORT`
+Production uses Docker Compose with PostgreSQL and PHP-FPM, plus host Nginx
+for HTTPS termination. Follow the complete fresh-Ubuntu deployment guide in
+[docker.md](docker.md).
 
 ## Running Tests
 

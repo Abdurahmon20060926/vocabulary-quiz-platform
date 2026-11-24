@@ -242,6 +242,28 @@ test('casual mode server rejects tampered answers', function () {
         ->assertJson(['verdict' => 'failed']);
 });
 
+test('casual mode rejects an incomplete answer log', function () {
+    $user = makeUser();
+    $quiz = makeQuiz($user, ['status' => 'published', 'mode' => 'casual']);
+    addQuestions($quiz, 5);
+
+    $run = \App\Models\QuizRun::create([
+        'quiz_id' => $quiz->id,
+        'user_id' => $user->id,
+        'mode' => 'casual',
+        'question_order' => $quiz->questions()->pluck('id')->toArray(),
+        'salt' => bin2hex(random_bytes(16)),
+        'status' => 'in_progress',
+    ]);
+
+    $this->actingAs($user)
+        ->postJson("/runs/{$run->id}/submit", ['answers' => []])
+        ->assertStatus(422)
+        ->assertJson(['error' => 'The answer log is incomplete.']);
+
+    expect($run->fresh()->status)->toBe('in_progress');
+});
+
 // === Suggestion Scoring & Per-creator Cap ===
 
 test('suggestions cap at 3 per creator', function () {
