@@ -1,0 +1,438 @@
+VOCABULARY QUIZ PLATFORM
+PROJECT PHASE AND CURRENT STATUS REPORT
+Prepared: 2026-11-26, 21:17 (+05:00)
+Requirements reference: quiz-prd-v2.pdf
+
+1. CURRENT PROJECT PHASE
+
+The project is currently in the local Docker stabilization and verification
+phase. The implementation of the main application is already substantial:
+authentication, quiz authoring and lifecycle, strict and casual gameplay,
+Explore, My Plays, voting, analytics, suggestions, and project documentation
+have been implemented.
+
+The next major milestone is not a new feature cycle. It is a final verification
+and deployment-readiness cycle:
+
+1. Confirm the same setup works in a clean Docker checkout.
+2. Verify the local development stack on port 8080.
+3. Complete live Google OAuth testing with real credentials.
+4. Complete manual UI checks that are intentionally not browser-automated.
+5. Prepare and test the real Ubuntu VPS deployment.
+6. Perform final backup, HTTPS, monitoring, and launch checks.
+
+The application has not been deployed to a public server. Production Compose
+files and deployment documentation exist, but they have not replaced the work
+needed to create real domain, certificate, secret, database, and server
+configuration.
+
+
+2. EXECUTIVE STATUS
+
+Implementation status:
+- Core application behavior is implemented.
+- The main Laravel feature-test suite passes.
+- The frontend typecheck and production build pass.
+- Local Docker Compose behavior has been tested from an empty database volume.
+- The production Docker image has been built and started as an isolated test.
+- PostgreSQL migration behavior has been checked against an isolated
+  PostgreSQL 16.15 database.
+- Production deployment and live OAuth remain pending.
+
+Current Git status:
+- Branch: master
+- Local commit f1d0c25, "fix: make Docker development setup reliable"
+- Master is one commit ahead of origin/master.
+- This report is not yet committed.
+- Several storage and bootstrap cache .gitignore files have pre-existing
+  executable/file-mode changes. They are not application-content changes and
+  are currently unstaged.
+- No Git push was performed.
+- No .env or .env.production file was read or changed.
+
+
+3. WHAT HAS BEEN COMPLETED
+
+Application implementation
+
+The application provides a learner-focused vocabulary quiz product built around
+strict and casual quizzes. Guests can browse and play listed published quizzes.
+Google-authenticated users can use Creator Studio to create, edit, publish,
+unpublish, duplicate, and inspect quizzes.
+
+Google authentication
+- Google OAuth is implemented through Laravel Socialite.
+- The callback creates or refreshes a user account from Google identity data.
+- Public payloads do not expose private email addresses.
+- Guest users receive persistent guest ownership tokens for run ownership.
+- Socialite behavior is covered by test doubles in the feature suite.
+- Live sign-in with actual Google client credentials has not yet been performed.
+
+Quiz lifecycle
+- Draft, published, and unpublished states are implemented.
+- Draft saves permit incomplete quiz and question data.
+- Publishing applies the complete PRD validation rules.
+- Published quizzes remain immutable.
+- Only drafts can be deleted.
+- Published or unpublished quizzes can be duplicated as a new draft.
+- Listed quizzes appear on Explore.
+- Unlisted quizzes remain accessible through their share link.
+- Unpublishing makes the quiz unavailable to other players and closes active
+  runs on their next request.
+- Draft and unpublished quiz test play is available to the creator.
+- Creator test runs are excluded from counted quiz totals.
+
+Strict mode
+- The server shuffles the question order and option permutations.
+- Only the current strict question is returned to the client.
+- Server timestamps decide timing outcomes within the configured grace period.
+- Wrong answers, timeout, and focus loss end the run suddenly.
+- Strict answer indexes are validated and mapped back to original option indexes.
+- Duplicate and unauthorized submissions are rejected or handled safely.
+- The client pauses timer display while an answer request is being checked.
+
+Casual mode
+- The server creates a random salt and answer hashes for the client.
+- The client shuffles questions and options and performs answer checks locally.
+- The submitted answer log is rechecked on the server.
+- Tampered answers, malformed logs, missing questions, duplicate question IDs,
+  invalid option indexes, and invalid reasons are rejected.
+- Creator analytics label casual quizzes and results as self-reported.
+
+Discovery and player features
+- Explore supports title and description search.
+- Explore supports All, Strict, and Casual mode filtering.
+- Explore supports Popular, Most played, and Newest sorting.
+- Cards show quiz metadata, creator, mode, timer, question count, votes, and
+  plays.
+- A global top-bar search routes to Explore using Wayfinder.
+- My Plays shows signed-in users' recent attempts and first-pass information.
+- Unavailable published-to-unpublished quizzes are identified in play history.
+
+Voting and analytics
+- Voting is restricted to signed-in users.
+- Published, listed quizzes only accept public votes.
+- Creators cannot vote on their own quizzes.
+- The vote row and cached upvote count are updated in a transaction.
+- Run, pass, and reached totals are counted according to the creator exclusion
+  rule.
+- Logged-in quiz-user attempt and pass statistics are maintained.
+- Creator analytics include totals, question correctness, selected wrong
+  options, average answer time, failure reasons, and player summaries.
+- Guests are grouped under a single Guests analytics row.
+
+Suggestions
+- Suggestions are generated from published, listed quizzes.
+- The current quiz and passed quizzes are excluded for signed-in users.
+- The author, pass-rate similarity, and vote weights are applied.
+- Quizzes with fewer than ten counted runs use a neutral statistics term.
+- Results are limited to twelve quizzes.
+- Each creator is limited to three suggestions.
+- The calculation is portable between SQLite and PostgreSQL.
+
+Database and migration work
+- All application migrations exist for users, quizzes, questions, votes, runs,
+  answers, and per-user quiz statistics.
+- The original quiz-runs create-table migration was restored to its historical
+  form.
+- A separate forward migration updates the user foreign key to cascade on user
+  deletion.
+- The same forward migration adds a PostgreSQL exactly-one-owner check:
+  either user_id or guest_token must be set, but not both.
+- The migration was checked for rollback and re-application.
+- Existing valid run data was preserved during the PostgreSQL upgrade simulation.
+- PostgreSQL rejection of ownerless and dual-owner runs was verified.
+- Cascade deletion of user-owned runs was verified.
+- An audit query for legacy invalid run owners is documented for use on a real
+  database before migration.
+
+Docker and environment work
+- The development Compose stack has separate db, app, and webserver services.
+- PostgreSQL 16 is used for Docker development.
+- The app image includes PHP-FPM, Composer, Node, npm, and Vite support.
+- The development image includes Composer development dependencies, so
+  php artisan test and Pest work inside the container.
+- The production image uses composer install --no-dev and
+  --optimize-autoloader.
+- The production image excludes tests and node_modules after asset building.
+- Storage and bootstrap cache directories are created at image build and
+  container entry.
+- Runtime Laravel directories are owned and writable by www-data with 775
+  permissions. The setup does not use chmod 777.
+- Named Docker volumes isolate storage and cache state from the host bind
+  mount.
+- Host build context rules exclude .env, .env.*, vendor, node_modules,
+  public/build, Laravel runtime cache directories, and generated PHP cache files.
+- Git ignore rules exclude generated bootstrap/cache/*.php files and both
+  secret environment file patterns.
+- The tracked .env.example now uses Docker database settings, port 8080,
+  file sessions, and matching Google callback configuration.
+- A tracked .env.production.example placeholder file is present.
+- Production Compose and deployment documentation use the same
+  .env.production file name.
+
+Documentation
+- docker.md gives exact local Docker setup and Snap Docker socket instructions.
+- README.md links to the Docker and production setup.
+- docs/DEPLOYMENT.md documents production Compose, HTTPS, backups, and updates.
+- docs/POSTGRES_SMOKE_TEST.md documents PostgreSQL migration verification.
+- docs/MANUAL_TEST_CHECKLIST.md documents manual browser behavior checks.
+- reports report.txt and reportTwo.txt contain earlier status summaries.
+
+
+4. DOCKER BUG FIXES JUST COMPLETED
+
+HTTP 500 and tempnam problem
+
+The previously reported BladeCompiler/tempnam failure was caused by an
+application runtime directory being unavailable or not writable to the PHP
+process in the bind-mounted container environment.
+
+Fixes now present:
+- The app Dockerfile creates storage/framework/cache/data,
+  storage/framework/sessions, storage/framework/views, storage/logs, and
+  bootstrap/cache.
+- The production Dockerfile creates the same directories before Wayfinder and
+  Vite Artisan build steps run.
+- The entrypoint recreates those directories each time a container starts.
+- The directories are assigned to www-data and use user/group write permissions.
+- The bind-mounted host project no longer needs manual chmod or sudo changes.
+- The dev Compose stack uses named volumes for storage and bootstrap/cache.
+
+Boost stale-provider problem
+
+Laravel Boost is only declared in require-dev. It is not referenced by
+bootstrap/providers.php or application runtime configuration.
+
+The Docker setup now:
+- Installs dev dependencies in the development app image.
+- Installs only production dependencies in the production image.
+- Excludes bootstrap/cache/*.php from Docker build contexts.
+- Ignores generated package.php and services.php cache files in Git.
+- Installs production dependencies with --no-dev and
+  --optimize-autoloader.
+
+Port and redirect consistency
+
+The development port is consistently 8080:
+- docker-compose.yml maps the webserver to 8080.
+- .env.example uses APP_URL=http://localhost:8080.
+- Google redirect configuration uses
+  http://localhost:8080/auth/google/callback.
+- README.md and docker.md use the same origin and callback.
+- The exact Google Cloud Console redirect URI is:
+  http://localhost:8080/auth/google/callback
+
+Database setup
+
+.env.example now contains Docker-safe defaults matching the db service:
+- DB_CONNECTION=pgsql
+- DB_HOST=db
+- DB_PORT=5432
+- DB_DATABASE=quizapp
+- DB_USERNAME=quizapp
+- DB_PASSWORD=quizapp
+
+It no longer contains a host PostgreSQL socket path or placeholder credentials.
+SESSION_DRIVER is set to file.
+
+Seeder setup
+
+The demo seeder creates five published and listed quizzes. The verified seed
+set contains:
+- Three casual quizzes.
+- Two strict quizzes.
+- At least six questions in every strict/casual seeded quiz counted in the
+  verification query.
+- Demo quiz titles including Advanced English Vocabulary, Scientific
+  Terminology, French Vocabulary Basics, Medical Terminology, and Business
+  English Vocabulary.
+
+
+5. REAL VERIFICATION ALREADY COMPLETED
+
+Fresh isolated Docker Compose stack
+
+A fresh Compose project was built using a clean build context and an empty
+named PostgreSQL volume. The sequence verified was:
+
+1. docker compose up -d --build
+2. docker compose exec app php artisan key:generate
+3. docker compose exec app php artisan migrate --seed
+4. docker compose exec app php artisan migrate:status
+5. docker compose exec app php artisan test --compact
+
+Observed results:
+- The database container became healthy.
+- All migrations ran successfully.
+- The database seeder ran successfully.
+- Home page returned HTTP 200.
+- /build/manifest.json returned HTTP 200.
+- Explore rendered demo quiz titles.
+- The database name was quizapp.
+- The database user was quizapp.
+- All five demo quizzes were published and listed.
+- The runtime directories were writable by the PHP-FPM www-data user.
+- PHP tempnam succeeded in storage/framework/views.
+- No manual chmod or sudo file permission change was used inside the app
+  container.
+
+Test and frontend verification
+- php artisan test --compact: 46 tests passed, 312 assertions.
+- npm run build: passed.
+- npm run typecheck: passed earlier in this project cycle.
+- docker compose config: passed.
+- Docker entrypoint shell syntax: passed.
+- git diff --check: passed.
+
+Production Docker image verification
+
+The production Dockerfile was built successfully in the Docker environment.
+The image was started with isolated test environment values and volumes.
+
+Observed:
+- Laravel booted as version 13.43.0.
+- PHP-FPM runtime directories passed the www-data write and tempnam checks.
+- The production image contained no laravel/boost vendor directory.
+- The production image contained no stale Boost provider cache.
+- public/build/manifest.json existed.
+
+PostgreSQL migration verification
+
+PostgreSQL 16.15 migration behavior was exercised using an isolated temporary
+cluster. Fresh migration, rollback, re-application, owner cascade behavior,
+and exactly-one-owner constraint behavior passed. This was separate from the
+local Docker Compose database and did not alter a real production database.
+
+
+6. ITEMS STILL NOT COMPLETE
+
+The following items require the actual user's environment or real credentials
+and cannot be considered complete merely because they are configured:
+
+Live Google OAuth
+- Register or confirm the correct Google OAuth client.
+- Add http://localhost:8080 and the exact callback URI in Google Cloud Console.
+- Fill GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the real local .env.
+- Test redirect, callback, user creation, avatar/name refresh, sign-out, and
+  session behavior through a browser.
+
+Manual browser behavior
+The project intentionally uses Pest feature tests rather than browser tests.
+The following still needs manual verification:
+- WASD keyboard controls on a fine-pointer device.
+- Enter key behavior for starting and retrying.
+- 2-by-2 touch layout on a phone or tablet.
+- Focus loss behavior while a question is active.
+- Countdown behavior.
+- Checking-state timer pausing.
+- Win and failure result screens.
+- Confetti.
+- Game-loop, fail, and win sound placeholders.
+- Device-local mute preference.
+- Mobile top-bar and sidebar behavior.
+
+Production server deployment
+- Choose and configure a real domain.
+- Provision an Ubuntu VPS.
+- Configure DNS.
+- Install Docker and Nginx.
+- Copy .env.production.example to .env.production and fill real placeholders.
+- Generate a unique Laravel APP_KEY.
+- Generate a secure PostgreSQL password.
+- Configure Google OAuth with HTTPS callback values.
+- Issue and renew a Let's Encrypt certificate.
+- Run the production migration once against a backed-up database.
+- Test HTTPS, HTTP redirect, assets, sessions, OAuth, database, and logs.
+
+Backups and operations
+- Establish PostgreSQL dump and restore procedures.
+- Preserve Docker named volumes.
+- Set a backup schedule and off-server retention.
+- Decide log rotation and monitoring.
+- Test an update and rollback procedure.
+- Never use docker compose down -v on the production database.
+
+
+7. GIT AND COMMIT STATUS
+
+The Docker fix commit is f1d0c25:
+
+  fix: make Docker development setup reliable
+
+It contains the implementation and documentation fixes for:
+- Docker runtime permissions.
+- Dev versus production dependency installation.
+- Cache and environment ignore rules.
+- Docker database and session defaults.
+- Port and Google redirect consistency.
+- Beginner Docker and Snap permissions documentation.
+
+This commit is local and has not been pushed.
+The branch currently reports master ahead of origin/master by one commit.
+
+Not included in that commit are file-mode changes affecting only .gitignore
+files in bootstrap/cache/ and storage/. These changes existed outside the
+surgical Docker fix and should be reviewed before deciding whether to restore
+or include them.
+
+No .env or .env.production was added, modified, or committed.
+
+
+8. EXACT LOCAL SETUP RESULT
+
+On a clean clone, the documented setup is:
+
+  cp .env.example .env
+  # Add Google credentials to .env.
+  docker compose up -d --build
+  docker compose exec app php artisan key:generate
+  docker compose exec app php artisan migrate --seed
+
+The application is then available at:
+
+  http://localhost:8080
+
+Useful verification commands are:
+
+  docker compose ps
+  docker compose exec app php artisan migrate:status
+  docker compose exec app php artisan tinker
+  docker compose exec app php artisan test --compact
+  docker compose logs --tail=100 app webserver db
+
+To completely reset the local database and named volumes:
+
+  docker compose down -v
+  docker compose up -d --build
+  docker compose exec app php artisan key:generate
+  docker compose exec app php artisan migrate --seed
+
+docker compose down -v removes local database and app cache data. It must not
+be used on a production system.
+
+
+9. OVERALL PROJECT ASSESSMENT
+
+The core product is implemented and operating as a complete vertical slice.
+The major backend, frontend, database, authentication, gameplay, discovery,
+voting, analytics, and Docker development workflows are in place.
+
+The main Docker problems that blocked the beginner setup have been addressed
+and reproduced against fresh isolated containers. The fixed behavior has been
+verified at HTTP 200, with migrations and seeded quizzes present, and without
+manual chmod or sudo permission changes inside the app container.
+
+The project is ready for the next local browser and OAuth test phase. It is not
+yet ready to be called fully production-deployed, because no public domain,
+HTTPS certificate, real OAuth client, real PostgreSQL backup, or monitored VPS
+has been tested.
+
+The recommended next phase is:
+
+1. Merge or retain commit f1d0c25 locally.
+2. Review and clean the unstaged file-mode changes.
+3. Test the setup through the real user's browser and Google OAuth credentials.
+4. Complete the manual UI checklist.
+5. Follow docs/DEPLOYMENT.md for a staged VPS deployment.
+6. Back up, verify HTTPS, monitor the site, then launch.
