@@ -19,7 +19,7 @@ WORKDIR /var/www/html
 
 # Copy dependency manifests first for cache efficiency
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --no-autoloader
+RUN composer install --no-interaction --no-progress --prefer-dist --no-scripts --no-autoloader
 
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -30,12 +30,23 @@ COPY . .
 # Finalize Composer
 RUN composer dump-autoload --optimize
 
-# Build frontend assets
-RUN npm run build
+# Build frontend assets and preserve a copy outside the bind-mounted app tree.
+RUN npm run build \
+    && mkdir -p /opt/quiz-public-build \
+    && cp -a public/build/. /opt/quiz-public-build/
 
-# Set permissions
-RUN chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+RUN mkdir -p \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R ug+rwX storage bootstrap/cache
+
+COPY docker/app/entrypoint.sh /usr/local/bin/quiz-entrypoint
+RUN chmod +x /usr/local/bin/quiz-entrypoint
 
 EXPOSE 9000
-CMD ["php-fpm"]
+ENTRYPOINT ["quiz-entrypoint"]
+CMD ["php-fpm", "-F"]

@@ -25,11 +25,16 @@ RUN npm ci --no-audit --no-fund
 
 COPY . .
 
+RUN mkdir -p \
+    storage/framework/cache/data \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache
+
 RUN php artisan wayfinder:generate \
     && npm run build \
-    && rm -rf node_modules \
-    && mkdir -p storage/framework/cache storage/framework/sessions \
-        storage/framework/views storage/logs bootstrap/cache \
+    && rm -rf node_modules tests \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R ug+rwX storage bootstrap/cache
 

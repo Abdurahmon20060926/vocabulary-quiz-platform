@@ -18,78 +18,58 @@ The implementation and remaining validation work are summarized in
 is in [report.txt](report.txt). For PostgreSQL migration verification, see
 [docs/POSTGRES_SMOKE_TEST.md](docs/POSTGRES_SMOKE_TEST.md).
 
-## Local Development Setup
+## Run Locally with Docker
 
-### Prerequisites
-- PHP 8.3+ with extensions: pdo_pgsql, pdo_sqlite, mbstring, xml, curl, zip, bcmath
-- Composer 2+
-- Node.js 18+ and npm
-- PostgreSQL 14+
-
-Docker Compose is also available for local PostgreSQL development; see
+Requirements: Ubuntu/Linux, Docker Engine, and Docker Compose v2. Detailed
+beginner-friendly setup and Snap Docker permission troubleshooting are in
 [docker.md](docker.md).
 
-### Steps
+On a clean clone, from the repository root:
 
 ```bash
-# 1. Clone and install dependencies
-git clone <repo-url> quiz
-cd quiz
-composer install
-npm install
-
-# 2. Configure environment
 cp .env.example .env
-php artisan key:generate
-
-# 3. Edit .env with your DB and Google OAuth credentials:
-#    DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD
-#    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
-
-# 4. Run migrations and seed demo data
-php artisan migrate
-php artisan db:seed
-
-# 5. Build frontend
-npm run build
-# Or for development with HMR:
-npm run dev
-
-# 6. Start server
-php artisan serve
+# Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env.
+docker compose up -d --build
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate --seed
 ```
 
-Visit http://localhost:8000
+Open **http://localhost:8080**. The first run builds the app and PostgreSQL
+containers; the database service becomes healthy before the app starts. The
+seed command creates five published, listed demo quizzes with both strict and
+casual modes.
 
 ## Google OAuth Setup
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or use an existing one)
-3. Enable the **Google+ API** (or People API)
-4. Under Credentials → Create OAuth Client ID → Web application
-5. Add Authorized redirect URIs: `https://your-domain.com/auth/google/callback`
-6. Copy Client ID and Client Secret to `.env`:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/).
+2. Create or select a project and configure the OAuth consent screen.
+3. Under Credentials, create an OAuth Client ID for a Web application.
+4. For local development, add `http://localhost:8080` as an Authorized
+   JavaScript origin and add this exact Authorized redirect URI:
+   `http://localhost:8080/auth/google/callback`.
+5. Copy the client ID and secret to `.env`:
    ```
    GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
    GOOGLE_CLIENT_SECRET=xxxx
-   GOOGLE_REDIRECT_URI=https://your-domain.com/auth/google/callback
+   GOOGLE_REDIRECT_URI=http://localhost:8080/auth/google/callback
    ```
+
+For production, register the production HTTPS origin and callback separately.
 
 ## Production Deployment
 
 Production uses Docker Compose with PostgreSQL and PHP-FPM, plus host Nginx
-for HTTPS termination. Follow the complete fresh-Ubuntu deployment guide in
-[docker.md](docker.md).
+for HTTPS termination. Follow the deployment guide in
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Running Tests
 
 ```bash
-php artisan test
-# or
-./vendor/bin/pest
+docker compose exec app php artisan test --compact
 ```
 
-Tests run on SQLite in-memory. No external services required.
+The development image includes the Composer development dependencies and runs
+tests on SQLite in memory. No external services are needed for the test suite.
 
 ## Demo Data
 

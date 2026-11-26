@@ -9,6 +9,7 @@
 /.claude/
 /.mcp.json
 /boost.json
+/bootstrap/cache/*.php
 .phpactor.json
 .phpunit.result.cache
 /.codex
