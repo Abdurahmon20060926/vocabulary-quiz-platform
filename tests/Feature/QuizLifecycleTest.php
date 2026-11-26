@@ -349,6 +349,25 @@ test('guest cannot vote', function () {
         ->assertStatus(401);
 });
 
+test('vote endpoint returns 422 when quiz is unavailable for voting', function () {
+    $creator = makeUser();
+    $voter = makeUser();
+    $quizzes = [
+        makeQuiz($creator, ['status' => 'draft', 'is_listed' => true]),
+        makeQuiz($creator, ['status' => 'unpublished', 'is_listed' => true]),
+        makeQuiz($creator, ['status' => 'published', 'is_listed' => false]),
+    ];
+
+    foreach ($quizzes as $quiz) {
+        $this->actingAs($voter)
+            ->postJson("/q/{$quiz->ulid}/vote")
+            ->assertUnprocessable();
+
+        expect($quiz->votes()->count())->toBe(0);
+        expect($quiz->fresh()->upvotes_count)->toBe(0);
+    }
+});
+
 // === Stats: Creator Runs Excluded ===
 
 test('creator runs do not count toward quiz stats', function () {
@@ -515,4 +534,32 @@ test('suggestions cap at 3 per creator', function () {
 
     $creatorCount = $suggestions->where('user_id', $creator->id)->count();
     expect($creatorCount)->toBeLessThanOrEqual(3);
+});
+
+test('suggestions exclude the current quiz hidden quizzes and quizzes already passed by the viewer', function () {
+    $creator = makeUser();
+    $viewer = makeUser();
+    $currentQuiz = makeQuiz($creator, ['status' => 'published', 'is_listed' => true]);
+    $availableQuiz = makeQuiz($creator, ['status' => 'published', 'is_listed' => true]);
+    $passedQuiz = makeQuiz($creator, ['status' => 'published', 'is_listed' => true]);
+    $unlistedQuiz = makeQuiz($creator, ['status' => 'published', 'is_listed' => false]);
+    $draftQuiz = makeQuiz($creator, ['status' => 'draft', 'is_listed' => true]);
+    QuizUserStat::create([
+        'user_id' => $viewer->id,
+        'quiz_id' => $passedQuiz->id,
+        'attempts' => 1,
+        'best_reached' => 5,
+        'passed' => true,
+        'last_played_at' => now(),
+    ]);
+
+    $suggestions = (new SuggestionService)->getSuggestions($currentQuiz, $viewer->id);
+    $suggestedIds = $suggestions->pluck('id')->all();
+
+    expect($suggestedIds)->toContain($availableQuiz->id);
+    expect($suggestedIds)
+        ->not->toContain($currentQuiz->id)
+        ->not->toContain($passedQuiz->id)
+        ->not->toContain($unlistedQuiz->id)
+        ->not->toContain($draftQuiz->id);
 });
