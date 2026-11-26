@@ -1,0 +1,189 @@
+VOCABULARY QUIZ PLATFORM - PROJECT STATUS REPORT
+Prepared: 2026-11-26
+Requirements source: attached quiz-prd-v2.pdf
+
+1. EXECUTIVE SUMMARY
+
+The project now implements the main product described in the requirements. Guests
+can discover and play quizzes, Google-authenticated users can create and manage
+quizzes, and both strict and casual game modes are implemented. Explore, My Plays,
+Creator Studio, voting, analytics, suggestions, and global search are present.
+
+The automated tests, frontend typecheck, and frontend production build pass.
+The new quiz-run ownership migration has been tested on both SQLite and an
+isolated PostgreSQL 16.15 database, including an upgrade with existing run data.
+The project has not been deployed. Docker is unavailable in this environment, so
+the Docker Compose workflow and production container image could not be built or
+run here.
+
+Overall status: the core application is implemented and tested, but production
+readiness still requires deployment-environment verification and the remaining
+manual client checks.
+
+
+2. TECHNOLOGY AND ENVIRONMENT
+
+Installed application stack:
+- PHP 8.3.6 and Laravel 13.43.0
+- Inertia Laravel adapter 3.7.0 and Vue client 3.11.0
+- Vue 3.5.46 with TypeScript
+- Tailwind CSS 4.3.5 and Vite 8.3.8
+- Laravel Wayfinder 0.1.23
+- Laravel Socialite 5.33.0 for Google sign-in
+- Pest 4.7.8 and PHPUnit 12.5.33
+- PostgreSQL 16.15 was used for isolated migration checks
+- SQLite in memory is used by the automated feature tests
+
+The repository includes Docker Compose for local development and separate
+production Compose, PHP-FPM, and Nginx configuration. Those container
+configurations have not been executed in this environment because Docker is not
+installed.
+
+The Laravel application's configured PostgreSQL endpoint was not available.
+PostgreSQL behavior was therefore checked using a separate temporary local
+cluster, rather than the application's configured database or any production
+database.
+
+
+3. WHAT HAS BEEN COMPLETED
+
+Authentication and guests
+- Google OAuth redirect and callback flows are implemented with Socialite.
+- User records are created or refreshed from Google identity information.
+- Guest play uses a persistent guest token, and run requests verify ownership.
+- Public page data does not expose a user's email address.
+- Feature tests cover Google authentication behavior using test doubles; a live
+  Google sign-in using production credentials has not been performed.
+
+Quiz lifecycle and Creator Studio
+- Draft, published, and unpublished quiz states are implemented.
+- Creators can create and edit incomplete drafts, then validate them when
+  publishing.
+- Published quizzes are immutable; creators can duplicate eligible quizzes as
+  drafts.
+- Only drafts can be deleted.
+- Publishing supports listed and unlisted quizzes. Unlisted quizzes remain
+  playable by link while published.
+- Creators can test-play their own draft and unpublished quizzes.
+- Unpublishing makes a quiz unavailable to other players and closes their
+  in-progress runs on the next request.
+- Creator test runs are excluded from the quiz's counted run and pass totals.
+
+Gameplay and run data
+- Both modes shuffle questions and answer options.
+- Strict mode sends only one question at a time and keeps answer checking and
+  timing on the server.
+- Casual mode sends salted answer hashes to the client and rechecks the submitted
+  answer log on the server.
+- Wrong answers, timeouts, and focus loss end a run immediately.
+- Strict answer validation, grace timing, run ownership, and duplicate
+  submissions have regression coverage.
+- Casual answer logs are checked for valid question sets, indexes, and failure
+  reasons. The interface labels casual analytics as self-reported.
+- Run completion and related quiz/user statistics are updated transactionally.
+- The client pauses strict timing during answer verification and avoids showing
+  uncertain network failures as confirmed results.
+- Focus-loss detection is disabled during countdown, checking, and result states.
+
+Database ownership migration
+- The historical quiz-runs table migration has been restored to its original
+  behavior rather than being relied on for future schema changes.
+- A new forward migration changes the user foreign key to cascade on user
+  deletion and adds a PostgreSQL check requiring exactly one owner: a user or a
+  guest token.
+- The migration preserves valid existing runs. PostgreSQL tests also verified
+  that ownerless and two-owner runs are rejected, and that deleting a run owner
+  cascades to that owner's run.
+- A pre-migration query for finding legacy rows with zero or two owners is
+  included in docs/POSTGRES_SMOKE_TEST.md. The actual configured database has
+  not been migrated in this environment.
+
+Discovery, voting, and analytics
+- Explore supports text search, mode filters, and popular, most-played, and
+  newest sorting.
+- A global top-bar search routes through generated Wayfinder helpers.
+- My Plays shows the signed-in user's recent quiz history and unavailable
+  quizzes.
+- Users can toggle votes on eligible quizzes; own-quiz voting is rejected and
+  vote counts are updated with the vote record.
+- Creator analytics include totals, unique players, question-level results,
+  failure breakdowns, and player summaries.
+- Suggestions use the configured author, statistics, and vote weights, apply
+  the low-play neutral score, exclude passed quizzes for signed-in viewers, and
+  cap results per creator.
+
+Interface and supporting materials
+- Desktop keyboard controls and a touch-friendly 2-by-2 answer layout exist.
+- Countdown, results, retry, confetti, and mute controls are implemented.
+- A responsive global search was checked in a browser, including a narrow
+  viewport.
+- Manual browser scenarios are listed in docs/MANUAL_TEST_CHECKLIST.md.
+- Local and production deployment preparation is described in docker.md.
+
+
+4. VERIFICATION RESULTS
+
+- php artisan test --compact: 46 tests passed, 312 assertions.
+- npm run typecheck: passed.
+- npm run build: passed.
+- PHP formatting with Pint: passed for the migration and test changes.
+- git diff --check: passed during final review.
+- SQLite migration smoke check: fresh migration, rollback of the new migration,
+  and re-application passed.
+- PostgreSQL 16.15 isolated smoke check: fresh migrations, rollback and
+  re-application, preservation of an existing valid run during upgrade,
+  rejection of both invalid ownership combinations, and cascade deletion passed.
+- Browser check: global search navigation and a narrow/mobile layout were
+  checked.
+- Not verified: Docker Compose startup, production image build, actual
+  production deployment, and live Google OAuth credentials.
+
+The PRD calls for Pest feature tests and manual verification of client-only
+behavior, not browser automation. The existing suite follows that approach.
+
+
+5. WHAT SHOULD BE DONE NEXT
+
+Priority 1 - verify the actual target environment
+
+1. Back up the real PostgreSQL database before applying migrations.
+2. Run the owner-audit query in docs/POSTGRES_SMOKE_TEST.md against that database.
+   If it finds rows with zero or two owners, inspect and resolve them explicitly;
+   do not guess an owner or delete data automatically.
+3. Apply the forward migration with php artisan migrate. Do not use
+   migrate:fresh on a database containing data.
+4. With Docker available, run the documented Compose PostgreSQL checks and build
+   and start the production image. Verify health, asset serving, logs, database
+   connectivity, and backups.
+
+Priority 2 - production setup
+
+1. Configure a real production domain and HTTPS certificate.
+2. Set secure production-only APP_KEY, database credentials, and Google OAuth
+   credentials in the deployment environment; do not commit them.
+3. Register the production Google OAuth origin and callback URL.
+4. Perform a live sign-in and verify the callback, session cookie, and sign-out.
+5. Establish an operational backup, restore, monitoring, and log-retention
+   process before relying on the service.
+
+Priority 3 - remaining manual client checks
+
+Use docs/MANUAL_TEST_CHECKLIST.md to verify keyboard controls, Enter to start or
+retry, touch layout, focus loss, countdown, timer behavior, sound and mute, and
+result screens across supported devices.
+
+Priority 4 - final product assets
+
+Replace the placeholder game-loop, fail, and win sound files when approved final
+audio assets are available.
+
+
+6. FINAL ASSESSMENT
+
+The PRD's core quiz, account, gameplay, discovery, creator, voting, analytics,
+and suggestions requirements are implemented, with regression tests covering
+important failure cases. SQLite and PostgreSQL migration behavior have both
+been exercised. The remaining work is primarily environment-specific
+verification, production deployment and credentials, manual client checks,
+and replacement of placeholder sound assets. The repository is not yet a
+production deployment.

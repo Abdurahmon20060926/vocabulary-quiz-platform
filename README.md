@@ -11,6 +11,13 @@ A gamified vocabulary quiz web app. Anyone can play time-constrained, sudden-dea
 - **Auth**: Google OAuth via Laravel Socialite
 - **Build**: Vite 8
 
+## Project Status
+
+The implementation and remaining validation work are summarized in
+[docs/STATUS.md](docs/STATUS.md). The detailed plain-English requirements report
+is in [report.txt](report.txt). For PostgreSQL migration verification, see
+[docs/POSTGRES_SMOKE_TEST.md](docs/POSTGRES_SMOKE_TEST.md).
+
 ## Local Development Setup
 
 ### Prerequisites
@@ -18,6 +25,9 @@ A gamified vocabulary quiz web app. Anyone can play time-constrained, sudden-dea
 - Composer 2+
 - Node.js 18+ and npm
 - PostgreSQL 14+
+
+Docker Compose is also available for local PostgreSQL development; see
+[docker.md](docker.md).
 
 ### Steps
 
