@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -12,7 +11,7 @@ return new class extends Migration
         Schema::create('quiz_runs', function (Blueprint $table) {
             $table->string('id', 26)->primary(); // ULID
             $table->foreignId('quiz_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('guest_token', 64)->nullable()->index();
             $table->string('mode', 10); // strict | casual
             $table->json('question_order'); // array of question IDs
@@ -29,13 +28,6 @@ return new class extends Migration
             $table->index(['quiz_id', 'user_id', 'status']);
             $table->index(['quiz_id', 'guest_token', 'status']);
         });
-
-        if (DB::connection()->getDriverName() === 'pgsql') {
-            DB::statement(
-                'ALTER TABLE quiz_runs ADD CONSTRAINT quiz_runs_exactly_one_owner '
-                .'CHECK ((user_id IS NOT NULL) <> (guest_token IS NOT NULL))'
-            );
-        }
     }
 
     public function down(): void

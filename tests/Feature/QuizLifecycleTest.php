@@ -125,6 +125,23 @@ test('quiz runs require exactly one user or guest owner', function () {
         ->toBeInstanceOf(QuizRun::class);
 });
 
+test('deleting a run owner cascades their runs to preserve the owner invariant', function () {
+    $creator = makeUser();
+    $player = makeUser();
+    $quiz = makeQuiz($creator);
+    $run = QuizRun::create([
+        'quiz_id' => $quiz->id,
+        'user_id' => $player->id,
+        'mode' => 'casual',
+        'question_order' => [],
+        'status' => 'in_progress',
+    ]);
+
+    $player->delete();
+
+    expect(QuizRun::find($run->id))->toBeNull();
+});
+
 // === Lifecycle: Publish Validation ===
 
 test('publish requires 5-15 questions', function () {
