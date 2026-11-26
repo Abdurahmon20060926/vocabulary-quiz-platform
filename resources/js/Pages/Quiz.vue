@@ -71,7 +71,7 @@ const casualAnswerLog = ref<any[]>([])
 const casualSalt = ref<string>('')
 
 // Results
-const result = ref<{ verdict: string; failure_reason?: string; reached: number; total: number } | null>(null)
+const result = ref<{ verdict: string; failure_reason?: string; message?: string; reached: number; total: number } | null>(null)
 const selectedDisplayIndex = ref<number | null>(null)
 const failedDisplayIndex = ref<number | null>(null)
 const errorMsg = ref<string | null>(null)
@@ -80,7 +80,6 @@ const errorMsg = ref<string | null>(null)
 const timeLeft = ref(0)
 const timerInterval = ref<ReturnType<typeof setInterval> | null>(null)
 const timerStartedAt = ref(0)
-const timerPausedAt = ref(0)
 const isTimerRunning = ref(false)
 const timerPaused = ref(false)
 
@@ -305,16 +304,6 @@ function startTimer() {
 
 function pauseTimer() {
   timerPaused.value = true
-  timerPausedAt.value = Date.now()
-}
-
-function resumeTimer() {
-  if (timerPaused.value) {
-    // Adjust start time by the pause duration so timer continues from where it left off
-    const pauseDuration = Date.now() - timerPausedAt.value
-    timerStartedAt.value += pauseDuration
-    timerPaused.value = false
-  }
 }
 
 function stopTimer() {
@@ -357,12 +346,8 @@ async function submitAnswer(displayIndex: number) {
       } else {
         handleRunEnd(data)
       }
-    } catch (err: any) {
-      // Network error — resume playing
-      resumeTimer()
-      gameState.value = 'playing'
-      selectedDisplayIndex.value = null
-      errorMsg.value = 'Network error. Please try again.'
+    } catch (error) {
+      showSubmissionError(error)
     }
   } else {
     // Casual: check hash locally via SubtleCrypto — instant, no checking state
@@ -371,8 +356,17 @@ async function submitAnswer(displayIndex: number) {
     const chosenOriginalIndex = displayedOptions[displayIndex]?.originalIndex
     const chosenText = displayedOptions[displayIndex]?.text ?? ''
 
-    // Compute expected hash for this option
-    const computedHash = await computeHash(casualSalt.value, q.id, chosenText)
+    pauseTimer()
+
+    let computedHash: string
+    try {
+      computedHash = await computeHash(casualSalt.value, q.id, chosenText)
+    } catch {
+      selectedDisplayIndex.value = null
+      showResultError('The answer could not be verified. Start a new run to continue.')
+      return
+    }
+
     const isCorrect = computedHash === q._hash
 
     stopTimer()
@@ -388,12 +382,12 @@ async function submitAnswer(displayIndex: number) {
       failedDisplayIndex.value = displayIndex
       // Brief visual feedback, then submit
       await new Promise(r => setTimeout(r, 600))
-      await submitCasualRun('wrong_answer')
+      await submitCasualRun()
     } else {
       selectedDisplayIndex.value = null
       casualQuestionIndex.value++
       if (casualQuestionIndex.value >= casualQuestions.value.length) {
-        await submitCasualRun(null)
+        await submitCasualRun()
       } else {
         currentQuestion.value = buildCasualQuestion()
         startTimer()
@@ -411,14 +405,8 @@ async function submitFailure(reason: string) {
     try {
       const res = await axios.post(`/runs/${runId.value}/answers`, { reason })
       handleRunEnd(res.data)
-    } catch {
-      gameState.value = 'result'
-      result.value = {
-        verdict: 'failed',
-        failure_reason: reason,
-        reached: currentQuestion.value?.index ?? 0,
-        total: props.quiz.questions_count,
-      }
+    } catch (error) {
+      showSubmissionError(error)
     }
   } else {
     casualAnswerLog.value.push({
@@ -427,7 +415,7 @@ async function submitFailure(reason: string) {
       reason,
       time_ms: elapsedMs,
     })
-    await submitCasualRun(reason)
+    await submitCasualRun()
   }
 }
 
@@ -446,7 +434,7 @@ function completeCasualAnswerLog() {
   }
 }
 
-async function submitCasualRun(failureReason: string | null) {
+async function submitCasualRun() {
   gameState.value = 'checking'
   completeCasualAnswerLog()
 
@@ -455,18 +443,41 @@ async function submitCasualRun(failureReason: string | null) {
       answers: casualAnswerLog.value.map(({ is_correct, ...answer }) => answer),
     })
     handleRunEnd(res.data)
-  } catch {
-    gameState.value = 'result'
-    result.value = {
-      verdict: 'failed',
-      failure_reason: failureReason || 'wrong_answer',
-      reached: casualAnswerLog.value.filter((a: any) => a.is_correct).length,
-      total: props.quiz.questions_count,
-    }
+  } catch (error) {
+    showSubmissionError(error)
   }
 }
 
+function showResultError(message: string) {
+  stopTimer()
+  gameState.value = 'result'
+  result.value = {
+    verdict: 'error',
+    message,
+    reached: currentQuestion.value?.index ?? 0,
+    total: props.quiz.questions_count,
+  }
+}
+
+function showSubmissionError(error: unknown) {
+  let message = 'We could not confirm whether this run was saved. Return to the quiz to refresh your results.'
+
+  if (axios.isAxiosError(error)) {
+    const responseMessage = error.response?.data?.error ?? error.response?.data?.message
+    if (typeof responseMessage === 'string') {
+      message = responseMessage
+    }
+  }
+
+  showResultError(message)
+}
+
 function handleRunEnd(data: any) {
+  if (data.verdict === 'abandoned') {
+    showResultError('This quiz is no longer available, so this run was not scored.')
+    return
+  }
+
   result.value = data
   localAttempts.value++
   if (data.reached > localBestReached.value) {
@@ -788,7 +799,7 @@ const timerColor = computed(() => {
       </div>
 
       <!-- FAIL -->
-      <div v-else class="mb-8 w-full max-w-sm">
+      <div v-else-if="result.verdict !== 'error'" class="mb-8 w-full max-w-sm">
         <div class="text-6xl mb-4">
           {{ result.failure_reason === 'timeout' ? '⏱️' : result.failure_reason === 'focus_lost' ? '👀' : '❌' }}
         </div>
@@ -809,12 +820,18 @@ const timerColor = computed(() => {
         </div>
       </div>
 
+      <div v-else class="mb-8 w-full max-w-sm">
+        <div class="text-6xl mb-4">⚠️</div>
+        <h2 class="text-2xl font-bold text-white mb-2">Run result unavailable</h2>
+        <p class="text-gray-400 text-sm">{{ result.message }}</p>
+      </div>
+
       <div class="flex gap-3 flex-wrap justify-center">
         <button
           @click="startGame"
           class="px-7 py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
-          Retry
+          {{ result.verdict === 'error' ? 'Start a new run' : 'Retry' }}
           <span class="hidden sm:inline text-brand-200 text-sm font-normal ml-1">(Enter)</span>
         </button>
         <Link

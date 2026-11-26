@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
+import { index as exploreIndex } from '@/actions/App/Http/Controllers/ExploreController'
 
 interface LayoutProps extends Record<string, unknown> {
   auth: {
@@ -13,13 +14,30 @@ interface LayoutProps extends Record<string, unknown> {
     best_reached: number
     passed: boolean
   }[] | null
+  filters?: { search?: string }
 }
 
 const page = usePage<LayoutProps>()
 const user = computed(() => page.props.auth.user)
 const recentPlays = computed(() => page.props.recentPlays ?? [])
+const searchQuery = ref(page.props.filters?.search ?? '')
 
 const showUserMenu = ref(false)
+
+watch(() => page.props.filters?.search, search => {
+  searchQuery.value = search ?? ''
+})
+
+function searchQuizzes() {
+  const search = searchQuery.value.trim()
+
+  router.get(exploreIndex.url({
+    query: { search: search || undefined },
+  }), {}, {
+    preserveState: true,
+    replace: true,
+  })
+}
 
 function logout() {
   router.post('/logout')
@@ -30,21 +48,44 @@ function logout() {
   <div class="min-h-screen bg-gray-950 flex flex-col">
     <!-- Top Bar -->
     <header class="border-b border-gray-800 bg-gray-950/95 backdrop-blur sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-4 gap-y-2 py-2 sm:py-0">
         <!-- Logo + Search -->
-        <div class="flex items-center gap-6 flex-1 min-w-0">
-          <Link href="/" class="flex items-center gap-2 shrink-0">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.384a1 1 0 01-.746.334H8.355a1 1 0 01-.746-.334l-.347-.384z" />
-              </svg>
-            </div>
-            <span class="font-bold text-lg text-white tracking-tight hidden sm:block">QuizVault</span>
-          </Link>
-        </div>
+        <Link href="/" class="flex items-center gap-2 shrink-0">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.384a1 1 0 01-.746.334H8.355a1 1 0 01-.746-.334l-.347-.384z" />
+            </svg>
+          </div>
+          <span class="font-bold text-lg text-white tracking-tight hidden sm:block">QuizVault</span>
+        </Link>
+
+        <form
+          role="search"
+          class="order-3 basis-full sm:order-2 sm:flex-1 min-w-0 sm:max-w-xl flex items-center gap-2"
+          @submit.prevent="searchQuizzes"
+        >
+          <label for="topbar-search" class="sr-only">Search quizzes</label>
+          <input
+            id="topbar-search"
+            v-model="searchQuery"
+            type="search"
+            placeholder="Search quizzes..."
+            class="min-w-0 flex-1 px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-colors"
+          />
+          <button
+            type="submit"
+            aria-label="Search"
+            class="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span class="hidden sm:inline text-sm">Search</span>
+          </button>
+        </form>
 
         <!-- Right: Nav items -->
-        <div class="flex items-center gap-3">
+        <div class="order-2 sm:order-3 ml-auto flex items-center gap-3">
           <Link
             v-if="user"
             href="/studio"
