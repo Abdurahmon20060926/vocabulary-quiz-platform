@@ -14,7 +14,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('position')->default(0);
             $table->string('prompt', 200);
             $table->json('options'); // array of exactly 4 strings
-            $table->unsignedTinyInteger('correct_option_index'); // 0-3
+            $table->unsignedTinyInteger('correct_option_index')->nullable(); // 0-3
             $table->timestamps();
 
             $table->index(['quiz_id', 'position']);

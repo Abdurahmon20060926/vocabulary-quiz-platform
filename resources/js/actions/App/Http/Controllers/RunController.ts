@@ -59,7 +59,7 @@ start.post = (args: { quiz: string | number | { ulid: string | number } } | [qui
 
 /**
 * @see \App\Http\Controllers\RunController::answer
-* @see app/Http/Controllers/RunController.php:59
+* @see app/Http/Controllers/RunController.php:55
 * @route '/runs/{run}/answers'
 */
 export const answer = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -74,7 +74,7 @@ answer.definition = {
 
 /**
 * @see \App\Http\Controllers\RunController::answer
-* @see app/Http/Controllers/RunController.php:59
+* @see app/Http/Controllers/RunController.php:55
 * @route '/runs/{run}/answers'
 */
 answer.url = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -101,7 +101,7 @@ answer.url = (args: { run: string | number } | [run: string | number ] | string 
 
 /**
 * @see \App\Http\Controllers\RunController::answer
-* @see app/Http/Controllers/RunController.php:59
+* @see app/Http/Controllers/RunController.php:55
 * @route '/runs/{run}/answers'
 */
 answer.post = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -111,7 +111,7 @@ answer.post = (args: { run: string | number } | [run: string | number ] | string
 
 /**
 * @see \App\Http\Controllers\RunController::submit
-* @see app/Http/Controllers/RunController.php:87
+* @see app/Http/Controllers/RunController.php:83
 * @route '/runs/{run}/submit'
 */
 export const submit = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -126,7 +126,7 @@ submit.definition = {
 
 /**
 * @see \App\Http\Controllers\RunController::submit
-* @see app/Http/Controllers/RunController.php:87
+* @see app/Http/Controllers/RunController.php:83
 * @route '/runs/{run}/submit'
 */
 submit.url = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -153,7 +153,7 @@ submit.url = (args: { run: string | number } | [run: string | number ] | string 
 
 /**
 * @see \App\Http\Controllers\RunController::submit
-* @see app/Http/Controllers/RunController.php:87
+* @see app/Http/Controllers/RunController.php:83
 * @route '/runs/{run}/submit'
 */
 submit.post = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({

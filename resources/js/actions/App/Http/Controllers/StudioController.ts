@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -35,7 +35,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -45,7 +45,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\StudioController::create
-* @see app/Http/Controllers/StudioController.php:46
+* @see app/Http/Controllers/StudioController.php:48
 * @route '/studio/quizzes/create'
 */
 export const create = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -60,7 +60,7 @@ create.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::create
-* @see app/Http/Controllers/StudioController.php:46
+* @see app/Http/Controllers/StudioController.php:48
 * @route '/studio/quizzes/create'
 */
 create.url = (options?: RouteQueryOptions) => {
@@ -69,7 +69,7 @@ create.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\StudioController::create
-* @see app/Http/Controllers/StudioController.php:46
+* @see app/Http/Controllers/StudioController.php:48
 * @route '/studio/quizzes/create'
 */
 create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -79,7 +79,7 @@ create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\StudioController::create
-* @see app/Http/Controllers/StudioController.php:46
+* @see app/Http/Controllers/StudioController.php:48
 * @route '/studio/quizzes/create'
 */
 create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -89,7 +89,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\StudioController::store
-* @see app/Http/Controllers/StudioController.php:54
+* @see app/Http/Controllers/StudioController.php:56
 * @route '/studio/quizzes'
 */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -104,7 +104,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::store
-* @see app/Http/Controllers/StudioController.php:54
+* @see app/Http/Controllers/StudioController.php:56
 * @route '/studio/quizzes'
 */
 store.url = (options?: RouteQueryOptions) => {
@@ -113,7 +113,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\StudioController::store
-* @see app/Http/Controllers/StudioController.php:54
+* @see app/Http/Controllers/StudioController.php:56
 * @route '/studio/quizzes'
 */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -123,7 +123,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\StudioController::edit
-* @see app/Http/Controllers/StudioController.php:68
+* @see app/Http/Controllers/StudioController.php:77
 * @route '/studio/quizzes/{quiz}/edit'
 */
 export const edit = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -138,7 +138,7 @@ edit.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::edit
-* @see app/Http/Controllers/StudioController.php:68
+* @see app/Http/Controllers/StudioController.php:77
 * @route '/studio/quizzes/{quiz}/edit'
 */
 edit.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -171,7 +171,7 @@ edit.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz:
 
 /**
 * @see \App\Http\Controllers\StudioController::edit
-* @see app/Http/Controllers/StudioController.php:68
+* @see app/Http/Controllers/StudioController.php:77
 * @route '/studio/quizzes/{quiz}/edit'
 */
 edit.get = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -181,7 +181,7 @@ edit.get = (args: { quiz: string | number | { ulid: string | number } } | [quiz:
 
 /**
 * @see \App\Http\Controllers\StudioController::edit
-* @see app/Http/Controllers/StudioController.php:68
+* @see app/Http/Controllers/StudioController.php:77
 * @route '/studio/quizzes/{quiz}/edit'
 */
 edit.head = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -191,7 +191,7 @@ edit.head = (args: { quiz: string | number | { ulid: string | number } } | [quiz
 
 /**
 * @see \App\Http\Controllers\StudioController::update
-* @see app/Http/Controllers/StudioController.php:93
+* @see app/Http/Controllers/StudioController.php:102
 * @route '/studio/quizzes/{quiz}'
 */
 export const update = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -206,7 +206,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::update
-* @see app/Http/Controllers/StudioController.php:93
+* @see app/Http/Controllers/StudioController.php:102
 * @route '/studio/quizzes/{quiz}'
 */
 update.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -239,7 +239,7 @@ update.url = (args: { quiz: string | number | { ulid: string | number } } | [qui
 
 /**
 * @see \App\Http\Controllers\StudioController::update
-* @see app/Http/Controllers/StudioController.php:93
+* @see app/Http/Controllers/StudioController.php:102
 * @route '/studio/quizzes/{quiz}'
 */
 update.put = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -249,7 +249,7 @@ update.put = (args: { quiz: string | number | { ulid: string | number } } | [qui
 
 /**
 * @see \App\Http\Controllers\StudioController::destroy
-* @see app/Http/Controllers/StudioController.php:116
+* @see app/Http/Controllers/StudioController.php:126
 * @route '/studio/quizzes/{quiz}'
 */
 export const destroy = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -264,7 +264,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::destroy
-* @see app/Http/Controllers/StudioController.php:116
+* @see app/Http/Controllers/StudioController.php:126
 * @route '/studio/quizzes/{quiz}'
 */
 destroy.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -297,7 +297,7 @@ destroy.url = (args: { quiz: string | number | { ulid: string | number } } | [qu
 
 /**
 * @see \App\Http\Controllers\StudioController::destroy
-* @see app/Http/Controllers/StudioController.php:116
+* @see app/Http/Controllers/StudioController.php:126
 * @route '/studio/quizzes/{quiz}'
 */
 destroy.delete = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -307,7 +307,7 @@ destroy.delete = (args: { quiz: string | number | { ulid: string | number } } | 
 
 /**
 * @see \App\Http\Controllers\StudioController::publish
-* @see app/Http/Controllers/StudioController.php:135
+* @see app/Http/Controllers/StudioController.php:147
 * @route '/studio/quizzes/{quiz}/publish'
 */
 export const publish = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -322,7 +322,7 @@ publish.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::publish
-* @see app/Http/Controllers/StudioController.php:135
+* @see app/Http/Controllers/StudioController.php:147
 * @route '/studio/quizzes/{quiz}/publish'
 */
 publish.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -355,7 +355,7 @@ publish.url = (args: { quiz: string | number | { ulid: string | number } } | [qu
 
 /**
 * @see \App\Http\Controllers\StudioController::publish
-* @see app/Http/Controllers/StudioController.php:135
+* @see app/Http/Controllers/StudioController.php:147
 * @route '/studio/quizzes/{quiz}/publish'
 */
 publish.post = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -365,7 +365,7 @@ publish.post = (args: { quiz: string | number | { ulid: string | number } } | [q
 
 /**
 * @see \App\Http\Controllers\StudioController::unpublish
-* @see app/Http/Controllers/StudioController.php:152
+* @see app/Http/Controllers/StudioController.php:164
 * @route '/studio/quizzes/{quiz}/unpublish'
 */
 export const unpublish = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -380,7 +380,7 @@ unpublish.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::unpublish
-* @see app/Http/Controllers/StudioController.php:152
+* @see app/Http/Controllers/StudioController.php:164
 * @route '/studio/quizzes/{quiz}/unpublish'
 */
 unpublish.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -413,7 +413,7 @@ unpublish.url = (args: { quiz: string | number | { ulid: string | number } } | [
 
 /**
 * @see \App\Http\Controllers\StudioController::unpublish
-* @see app/Http/Controllers/StudioController.php:152
+* @see app/Http/Controllers/StudioController.php:164
 * @route '/studio/quizzes/{quiz}/unpublish'
 */
 unpublish.post = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -423,7 +423,7 @@ unpublish.post = (args: { quiz: string | number | { ulid: string | number } } | 
 
 /**
 * @see \App\Http\Controllers\StudioController::duplicate
-* @see app/Http/Controllers/StudioController.php:165
+* @see app/Http/Controllers/StudioController.php:177
 * @route '/studio/quizzes/{quiz}/duplicate'
 */
 export const duplicate = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -438,7 +438,7 @@ duplicate.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::duplicate
-* @see app/Http/Controllers/StudioController.php:165
+* @see app/Http/Controllers/StudioController.php:177
 * @route '/studio/quizzes/{quiz}/duplicate'
 */
 duplicate.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -471,7 +471,7 @@ duplicate.url = (args: { quiz: string | number | { ulid: string | number } } | [
 
 /**
 * @see \App\Http\Controllers\StudioController::duplicate
-* @see app/Http/Controllers/StudioController.php:165
+* @see app/Http/Controllers/StudioController.php:177
 * @route '/studio/quizzes/{quiz}/duplicate'
 */
 duplicate.post = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -481,7 +481,7 @@ duplicate.post = (args: { quiz: string | number | { ulid: string | number } } | 
 
 /**
 * @see \App\Http\Controllers\StudioController::stats
-* @see app/Http/Controllers/StudioController.php:178
+* @see app/Http/Controllers/StudioController.php:190
 * @route '/studio/quizzes/{quiz}/stats'
 */
 export const stats = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -496,7 +496,7 @@ stats.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::stats
-* @see app/Http/Controllers/StudioController.php:178
+* @see app/Http/Controllers/StudioController.php:190
 * @route '/studio/quizzes/{quiz}/stats'
 */
 stats.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -529,7 +529,7 @@ stats.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz
 
 /**
 * @see \App\Http\Controllers\StudioController::stats
-* @see app/Http/Controllers/StudioController.php:178
+* @see app/Http/Controllers/StudioController.php:190
 * @route '/studio/quizzes/{quiz}/stats'
 */
 stats.get = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -539,7 +539,7 @@ stats.get = (args: { quiz: string | number | { ulid: string | number } } | [quiz
 
 /**
 * @see \App\Http\Controllers\StudioController::stats
-* @see app/Http/Controllers/StudioController.php:178
+* @see app/Http/Controllers/StudioController.php:190
 * @route '/studio/quizzes/{quiz}/stats'
 */
 stats.head = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -549,7 +549,7 @@ stats.head = (args: { quiz: string | number | { ulid: string | number } } | [qui
 
 /**
 * @see \App\Http\Controllers\StudioController::storeQuestion
-* @see app/Http/Controllers/StudioController.php:281
+* @see app/Http/Controllers/StudioController.php:304
 * @route '/studio/quizzes/{quiz}/questions'
 */
 export const storeQuestion = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -564,7 +564,7 @@ storeQuestion.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::storeQuestion
-* @see app/Http/Controllers/StudioController.php:281
+* @see app/Http/Controllers/StudioController.php:304
 * @route '/studio/quizzes/{quiz}/questions'
 */
 storeQuestion.url = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions) => {
@@ -597,7 +597,7 @@ storeQuestion.url = (args: { quiz: string | number | { ulid: string | number } }
 
 /**
 * @see \App\Http\Controllers\StudioController::storeQuestion
-* @see app/Http/Controllers/StudioController.php:281
+* @see app/Http/Controllers/StudioController.php:304
 * @route '/studio/quizzes/{quiz}/questions'
 */
 storeQuestion.post = (args: { quiz: string | number | { ulid: string | number } } | [quiz: string | number | { ulid: string | number } ] | string | number | { ulid: string | number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -607,7 +607,7 @@ storeQuestion.post = (args: { quiz: string | number | { ulid: string | number } 
 
 /**
 * @see \App\Http\Controllers\StudioController::updateQuestion
-* @see app/Http/Controllers/StudioController.php:310
+* @see app/Http/Controllers/StudioController.php:327
 * @route '/studio/quizzes/{quiz}/questions/{questionId}'
 */
 export const updateQuestion = (args: { quiz: string | number | { ulid: string | number }, questionId: string | number } | [quiz: string | number | { ulid: string | number }, questionId: string | number ], options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -622,7 +622,7 @@ updateQuestion.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::updateQuestion
-* @see app/Http/Controllers/StudioController.php:310
+* @see app/Http/Controllers/StudioController.php:327
 * @route '/studio/quizzes/{quiz}/questions/{questionId}'
 */
 updateQuestion.url = (args: { quiz: string | number | { ulid: string | number }, questionId: string | number } | [quiz: string | number | { ulid: string | number }, questionId: string | number ], options?: RouteQueryOptions) => {
@@ -650,7 +650,7 @@ updateQuestion.url = (args: { quiz: string | number | { ulid: string | number },
 
 /**
 * @see \App\Http\Controllers\StudioController::updateQuestion
-* @see app/Http/Controllers/StudioController.php:310
+* @see app/Http/Controllers/StudioController.php:327
 * @route '/studio/quizzes/{quiz}/questions/{questionId}'
 */
 updateQuestion.put = (args: { quiz: string | number | { ulid: string | number }, questionId: string | number } | [quiz: string | number | { ulid: string | number }, questionId: string | number ], options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -660,7 +660,7 @@ updateQuestion.put = (args: { quiz: string | number | { ulid: string | number },
 
 /**
 * @see \App\Http\Controllers\StudioController::destroyQuestion
-* @see app/Http/Controllers/StudioController.php:339
+* @see app/Http/Controllers/StudioController.php:350
 * @route '/studio/quizzes/{quiz}/questions/{questionId}'
 */
 export const destroyQuestion = (args: { quiz: string | number | { ulid: string | number }, questionId: string | number } | [quiz: string | number | { ulid: string | number }, questionId: string | number ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -675,7 +675,7 @@ destroyQuestion.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::destroyQuestion
-* @see app/Http/Controllers/StudioController.php:339
+* @see app/Http/Controllers/StudioController.php:350
 * @route '/studio/quizzes/{quiz}/questions/{questionId}'
 */
 destroyQuestion.url = (args: { quiz: string | number | { ulid: string | number }, questionId: string | number } | [quiz: string | number | { ulid: string | number }, questionId: string | number ], options?: RouteQueryOptions) => {
@@ -703,7 +703,7 @@ destroyQuestion.url = (args: { quiz: string | number | { ulid: string | number }
 
 /**
 * @see \App\Http\Controllers\StudioController::destroyQuestion
-* @see app/Http/Controllers/StudioController.php:339
+* @see app/Http/Controllers/StudioController.php:350
 * @route '/studio/quizzes/{quiz}/questions/{questionId}'
 */
 destroyQuestion.delete = (args: { quiz: string | number | { ulid: string | number }, questionId: string | number } | [quiz: string | number | { ulid: string | number }, questionId: string | number ], options?: RouteQueryOptions): RouteDefinition<'delete'> => ({

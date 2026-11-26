@@ -2,7 +2,7 @@ import { queryParams, type RouteQueryOptions, type RouteDefinition } from './../
 import quizzes from './quizzes'
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -17,7 +17,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 index.url = (options?: RouteQueryOptions) => {
@@ -26,7 +26,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -36,7 +36,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\StudioController::index
-* @see app/Http/Controllers/StudioController.php:19
+* @see app/Http/Controllers/StudioController.php:21
 * @route '/studio'
 */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({

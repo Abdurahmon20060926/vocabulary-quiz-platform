@@ -12,10 +12,10 @@ return new class extends Migration
             $table->id();
             $table->string('ulid', 26)->unique();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('title', 80);
+            $table->string('title', 80)->nullable();
             $table->text('description')->nullable();
-            $table->string('mode', 10)->default('casual'); // strict | casual
-            $table->unsignedSmallInteger('seconds_per_question')->default(10);
+            $table->string('mode', 10)->nullable(); // strict | casual
+            $table->unsignedSmallInteger('seconds_per_question')->nullable();
             $table->string('status', 20)->default('draft'); // draft | published | unpublished
             $table->boolean('is_listed')->default(true);
             $table->timestamp('published_at')->nullable();

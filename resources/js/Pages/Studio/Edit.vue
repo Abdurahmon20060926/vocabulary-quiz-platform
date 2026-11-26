@@ -6,10 +6,10 @@ import axios from 'axios'
 interface Quiz {
   id: number
   ulid: string
-  title: string
-  description?: string
-  mode: string
-  seconds_per_question: number
+  title: string | null
+  description?: string | null
+  mode: 'strict' | 'casual' | null
+  seconds_per_question: number | null
   status: string
 }
 
@@ -18,7 +18,7 @@ interface Question {
   position: number
   prompt: string
   options: string[]
-  correct_option_index: number
+  correct_option_index: number | null
 }
 
 const props = defineProps<{
@@ -26,11 +26,18 @@ const props = defineProps<{
   questions: Question[]
 }>()
 
+const modeOptions = [
+  { value: null, label: 'Not set' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'strict', label: 'Strict' },
+] as const
+const timerOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+
 // Quiz fields
 const title = ref(props.quiz?.title || '')
 const description = ref(props.quiz?.description || '')
-const mode = ref(props.quiz?.mode || 'casual')
-const secondsPerQuestion = ref(props.quiz?.seconds_per_question || 10)
+const mode = ref<'strict' | 'casual' | null>(props.quiz?.mode ?? null)
+const secondsPerQuestion = ref<number | null>(props.quiz?.seconds_per_question ?? null)
 
 const questions = ref<Question[]>(props.questions || [])
 const quizUlid = ref<string | null>(props.quiz?.ulid || null)
@@ -48,7 +55,7 @@ function newBlankQuestion(): Question {
   return {
     prompt: '',
     options: ['', '', '', ''],
-    correct_option_index: 0,
+    correct_option_index: null,
     position: questions.value.length,
   }
 }
@@ -80,14 +87,14 @@ async function saveQuiz() {
 
   try {
     if (!quizUlid.value) {
-      // Create
       const res = await axios.post('/studio/quizzes', {
         title: title.value,
         description: description.value || null,
         mode: mode.value,
         seconds_per_question: secondsPerQuestion.value,
       })
-      // redirect happens via Inertia
+      router.visit(res.data.redirect)
+      return
     } else {
       await axios.put(`/studio/quizzes/${quizUlid.value}`, {
         title: title.value,
@@ -106,23 +113,13 @@ async function saveQuiz() {
 
 async function saveQuestion() {
   if (!editingQuestion.value) return
+  const navigateToQuiz = !quizUlid.value
   if (!quizUlid.value) {
-    // Save quiz first
     await saveQuizIfNew()
     if (!quizUlid.value) return
   }
 
   const q = editingQuestion.value
-  if (!q.prompt.trim()) {
-    alert('Question prompt is required.')
-    return
-  }
-  for (const opt of q.options) {
-    if (!opt.trim()) {
-      alert('All 4 options are required.')
-      return
-    }
-  }
 
   try {
     if (isNewQuestion.value) {
@@ -143,8 +140,11 @@ async function saveQuestion() {
       questions.value[editingIndex.value] = res.data.question
     }
     cancelEdit()
+    if (navigateToQuiz && quizUlid.value) {
+      router.visit(`/studio/quizzes/${quizUlid.value}/edit`)
+    }
   } catch (err: any) {
-    alert(err.response?.data?.message || 'Failed to save question.')
+    errorMsg.value = err.response?.data?.message || 'Failed to save question.'
   }
 }
 
@@ -163,26 +163,23 @@ async function deleteQuestion(q: Question, index: number) {
 async function saveQuizIfNew() {
   if (quizUlid.value) return
   saving.value = true
+  errorMsg.value = null
   try {
     const res = await axios.post('/studio/quizzes', {
-      title: title.value || 'Untitled Quiz',
+      title: title.value || null,
       description: description.value || null,
       mode: mode.value,
       seconds_per_question: secondsPerQuestion.value,
     })
-    // The route redirects to edit page - we need to handle this differently
-    // Actually let's use Inertia post
-    router.post('/studio/quizzes', {
-      title: title.value || 'Untitled Quiz',
-      description: description.value || null,
-      mode: mode.value,
-      seconds_per_question: secondsPerQuestion.value,
-    })
-  } catch {}
-  saving.value = false
+    quizUlid.value = res.data.ulid
+  } catch (err: any) {
+    errorMsg.value = err.response?.data?.message || 'Failed to save the draft.'
+  } finally {
+    saving.value = false
+  }
 }
 
-const isReadOnly = computed(() => props.quiz?.status && props.quiz.status !== 'draft')
+const isReadOnly = computed(() => props.quiz !== null && props.quiz.status !== 'draft')
 </script>
 
 <template>
@@ -234,37 +231,33 @@ const isReadOnly = computed(() => props.quiz?.status && props.quiz.status !== 'd
               <label class="block text-xs font-medium text-gray-400 mb-1.5">Mode</label>
               <div class="grid grid-cols-2 gap-2">
                 <button
-                  v-for="m in ['casual', 'strict']"
-                  :key="m"
-                  @click="!isReadOnly && (mode = m)"
+                  v-for="option in modeOptions"
+                  :key="option.label"
+                  @click="!isReadOnly && (mode = option.value)"
                   class="py-2 px-3 rounded-lg text-sm font-medium border transition-colors capitalize"
                   :class="[
-                    mode === m ? 'border-brand-500 bg-brand-900/30 text-brand-300' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600',
+                    mode === option.value ? 'border-brand-500 bg-brand-900/30 text-brand-300' : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600',
                     isReadOnly ? 'opacity-60 cursor-default' : 'cursor-pointer',
                   ]"
                 >
-                  {{ m }}
+                  {{ option.label }}
                 </button>
               </div>
               <p class="text-xs text-gray-500 mt-1.5">
-                {{ mode === 'strict' ? 'Server-authoritative: server controls timing and answer verification.' : 'Client-checked: fast and fluid, results labeled self-reported.' }}
+                {{ mode === 'strict' ? 'Server-authoritative: server controls timing and answer verification.' : mode === 'casual' ? 'Client-checked: fast and fluid, results labeled self-reported.' : 'Choose a mode before publishing.' }}
               </p>
             </div>
 
             <div>
-              <label class="block text-xs font-medium text-gray-400 mb-1.5">Seconds per question: <span class="text-gray-200 font-semibold">{{ secondsPerQuestion }}s</span></label>
-              <input
-                v-model.number="secondsPerQuestion"
+              <label class="block text-xs font-medium text-gray-400 mb-1.5">Seconds per question</label>
+              <select
+                v-model="secondsPerQuestion"
                 :disabled="isReadOnly"
-                type="range"
-                min="2"
-                max="10"
-                class="w-full accent-brand-500 disabled:opacity-60"
-              />
-              <div class="flex justify-between text-xs text-gray-500 mt-0.5">
-                <span>2s</span>
-                <span>10s</span>
-              </div>
+                class="w-full px-3 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-100 focus:outline-none focus:border-brand-500 disabled:opacity-60"
+              >
+                <option :value="null">Not set</option>
+                <option v-for="seconds in timerOptions" :key="seconds" :value="seconds">{{ seconds }} seconds</option>
+              </select>
             </div>
           </div>
 
@@ -281,7 +274,7 @@ const isReadOnly = computed(() => props.quiz?.status && props.quiz.status !== 'd
               :disabled="saving"
               class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition-colors disabled:opacity-60 text-sm"
             >
-              {{ saving ? 'Saving...' : (quiz ? 'Save' : 'Create Quiz') }}
+              {{ saving ? 'Saving...' : (quiz ? 'Save' : 'Create Draft') }}
             </button>
           </div>
 

@@ -1,24 +1,22 @@
-import { createApp, h } from 'vue'
+import { createApp, h, type DefineComponent } from 'vue'
 import { createInertiaApp } from '@inertiajs/vue3'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import AppLayout from './Layouts/AppLayout.vue'
 
 const appName = (window as any).__APP_NAME__ || 'QuizVault'
+type PageWithLayout = DefineComponent & { layout?: typeof AppLayout }
+const pages = import.meta.glob<{ default: PageWithLayout }>('./Pages/**/*.vue')
 
 createInertiaApp({
   title: (title) => title ? `${title} · ${appName}` : appName,
-  resolve: (name) => {
-    const page = resolvePageComponent(
+  resolve: (name) => resolvePageComponent(
       `./Pages/${name}.vue`,
-      import.meta.glob('./Pages/**/*.vue')
-    )
-    page.then((module: any) => {
-      if (!module.default.layout) {
-        module.default.layout = AppLayout
-      }
-    })
-    return page
-  },
+      pages
+    ).then(({ default: component }) => {
+      component.layout ??= AppLayout
+
+      return component
+    }),
   setup({ el, App, props, plugin }) {
     createApp({ render: () => h(App, props) })
       .use(plugin)

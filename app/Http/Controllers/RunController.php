@@ -14,16 +14,12 @@ class RunController extends Controller
 
     public function start(Request $request, Quiz $quiz): JsonResponse
     {
-        // Only published quizzes can be played (or drafts by creator for test play)
-        if (!$quiz->isPublished()) {
-            if ($quiz->isDraft()) {
-                // Allow creator to test play their draft
-                if (!$request->user() || $request->user()->id !== $quiz->user_id) {
-                    return response()->json(['error' => 'Quiz not available'], 404);
-                }
-            } else {
-                return response()->json(['error' => 'Quiz not available'], 404);
-            }
+        $isCreator = $request->user()?->id === $quiz->user_id;
+        $canPlay = $quiz->isPublished()
+            || ($isCreator && ($quiz->isDraft() || $quiz->isUnpublished()));
+
+        if (! $canPlay) {
+            return response()->json(['error' => 'Quiz not available'], 404);
         }
 
         $user = $request->user();
@@ -32,8 +28,8 @@ class RunController extends Controller
 
         try {
             $result = $this->runService->startRun($quiz, $userId, $guestToken);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\DomainException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 422);
         }
 
         $response = [
@@ -49,7 +45,7 @@ class RunController extends Controller
         }
 
         $headers = [];
-        if (!$userId && isset($guestToken)) {
+        if (! $userId && isset($guestToken)) {
             $headers['X-Guest-Token'] = $guestToken;
         }
 
@@ -60,11 +56,11 @@ class RunController extends Controller
     {
         $run = QuizRun::find($runId);
 
-        if (!$run) {
+        if (! $run) {
             return response()->json(['error' => 'Run not found'], 404);
         }
 
-        if (!$this->authorizeRun($request, $run)) {
+        if (! $this->authorizeRun($request, $run)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -72,9 +68,9 @@ class RunController extends Controller
             return response()->json(['error' => 'Use /submit for casual runs'], 422);
         }
 
-        // Check if quiz was unpublished
-        if ($run->quiz->status === 'unpublished') {
+        if ($run->isInProgress() && $run->quiz->isUnpublished() && $run->user_id !== $run->quiz->user_id) {
             $run->update(['status' => 'abandoned', 'finished_at' => now()]);
+
             return response()->json(['verdict' => 'abandoned', 'reason' => 'quiz_unavailable']);
         }
 
@@ -88,11 +84,11 @@ class RunController extends Controller
     {
         $run = QuizRun::find($runId);
 
-        if (!$run) {
+        if (! $run) {
             return response()->json(['error' => 'Run not found'], 404);
         }
 
-        if (!$this->authorizeRun($request, $run)) {
+        if (! $this->authorizeRun($request, $run)) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -100,14 +96,14 @@ class RunController extends Controller
             return response()->json(['error' => 'Use /answers for strict runs'], 422);
         }
 
-        // Check if quiz was unpublished
-        if ($run->quiz->status === 'unpublished') {
+        if ($run->isInProgress() && $run->quiz->isUnpublished() && $run->user_id !== $run->quiz->user_id) {
             $run->update(['status' => 'abandoned', 'finished_at' => now()]);
+
             return response()->json(['verdict' => 'abandoned', 'reason' => 'quiz_unavailable']);
         }
 
         $answers = $request->input('answers', []);
-        if (!is_array($answers)) {
+        if (! is_array($answers)) {
             return response()->json(['error' => 'Answers must be an array.'], 422);
         }
 
@@ -124,10 +120,11 @@ class RunController extends Controller
             return true;
         }
 
-        if (!$user && $run->guest_token) {
+        if (! $user && $run->guest_token) {
             $cookieToken = $request->cookie('guest_token');
             $headerToken = $request->header('X-Guest-Token');
             $token = $cookieToken ?? $headerToken;
+
             return $token && $token === $run->guest_token;
         }
 
@@ -137,9 +134,10 @@ class RunController extends Controller
     private function getOrCreateGuestToken(Request $request): string
     {
         $token = $request->cookie('guest_token') ?: $request->attributes->get('guest_token');
-        if (!$token) {
+        if (! $token) {
             $token = bin2hex(random_bytes(32));
         }
+
         return $token;
     }
 }

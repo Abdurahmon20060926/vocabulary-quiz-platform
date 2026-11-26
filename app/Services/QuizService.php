@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Quiz;
 use App\Models\Question;
+use App\Models\Quiz;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -13,10 +13,10 @@ class QuizService
     public function createDraft(User $user, array $data): Quiz
     {
         return $user->quizzes()->create([
-            'title' => $data['title'],
+            'title' => $data['title'] ?? null,
             'description' => $data['description'] ?? null,
-            'mode' => $data['mode'] ?? 'casual',
-            'seconds_per_question' => $data['seconds_per_question'] ?? 10,
+            'mode' => $data['mode'] ?? null,
+            'seconds_per_question' => $data['seconds_per_question'] ?? null,
             'status' => 'draft',
             'is_listed' => true,
         ]);
@@ -24,17 +24,24 @@ class QuizService
 
     public function updateDraft(Quiz $quiz, array $data): Quiz
     {
-        $quiz->update([
-            'title' => $data['title'] ?? $quiz->title,
-            'description' => $data['description'] ?? $quiz->description,
-            'mode' => $data['mode'] ?? $quiz->mode,
-            'seconds_per_question' => $data['seconds_per_question'] ?? $quiz->seconds_per_question,
-        ]);
+        $quiz->fill(array_intersect_key($data, array_flip([
+            'title',
+            'description',
+            'mode',
+            'seconds_per_question',
+        ])))->save();
+
         return $quiz->fresh();
     }
 
     public function publish(Quiz $quiz, bool $isListed): Quiz
     {
+        if ($quiz->isPublished()) {
+            throw ValidationException::withMessages([
+                'quiz' => 'Published quizzes are immutable. Duplicate this quiz to make changes.',
+            ]);
+        }
+
         $this->validateForPublish($quiz);
 
         DB::transaction(function () use ($quiz, $isListed) {
@@ -52,14 +59,6 @@ class QuizService
     {
         DB::transaction(function () use ($quiz) {
             $quiz->update(['status' => 'unpublished', 'is_listed' => false]);
-            // Abandon in-progress runs by other players
-            $quiz->runs()
-                ->where('status', 'in_progress')
-                ->where(function ($q) use ($quiz) {
-                    $q->whereNull('user_id')
-                      ->orWhere('user_id', '!=', $quiz->user_id);
-                })
-                ->update(['status' => 'abandoned', 'finished_at' => now()]);
         });
 
         return $quiz->fresh();
@@ -69,7 +68,7 @@ class QuizService
     {
         return DB::transaction(function () use ($quiz, $user) {
             $newQuiz = $user->quizzes()->create([
-                'title' => $quiz->title . ' (copy)',
+                'title' => $quiz->title.' (copy)',
                 'description' => $quiz->description,
                 'mode' => $quiz->mode,
                 'seconds_per_question' => $quiz->seconds_per_question,
@@ -92,7 +91,7 @@ class QuizService
 
     public function deleteDraft(Quiz $quiz): void
     {
-        if (!$quiz->isDraft()) {
+        if (! $quiz->isDraft()) {
             throw new \RuntimeException('Only drafts can be deleted.');
         }
         $quiz->delete();
@@ -103,19 +102,25 @@ class QuizService
         $questions = $quiz->questions;
         $count = $questions->count();
 
+        if (! is_string($quiz->title) || trim($quiz->title) === '') {
+            throw ValidationException::withMessages([
+                'title' => 'A quiz title is required before publishing.',
+            ]);
+        }
+
         if ($count < 5 || $count > 15) {
             throw ValidationException::withMessages([
                 'questions' => "A quiz must have between 5 and 15 questions (currently {$count}).",
             ]);
         }
 
-        if (!in_array($quiz->mode, ['strict', 'casual'])) {
+        if (! in_array($quiz->mode, ['strict', 'casual'])) {
             throw ValidationException::withMessages([
                 'mode' => 'Quiz mode must be strict or casual.',
             ]);
         }
 
-        if ($quiz->seconds_per_question < 2 || $quiz->seconds_per_question > 10) {
+        if ($quiz->seconds_per_question === null || $quiz->seconds_per_question < 2 || $quiz->seconds_per_question > 10) {
             throw ValidationException::withMessages([
                 'seconds_per_question' => 'Timer must be between 2 and 10 seconds.',
             ]);
@@ -124,35 +129,35 @@ class QuizService
         foreach ($questions as $i => $question) {
             $num = $i + 1;
 
-            if (empty(trim($question->prompt))) {
+            if (! is_string($question->prompt) || trim($question->prompt) === '') {
                 throw ValidationException::withMessages([
                     'questions' => "Question {$num} has an empty prompt.",
                 ]);
             }
 
             $options = $question->options;
-            if (!is_array($options) || count($options) !== 4) {
+            if (! is_array($options) || count($options) !== 4) {
                 throw ValidationException::withMessages([
                     'questions' => "Question {$num} must have exactly 4 options.",
                 ]);
             }
 
             foreach ($options as $j => $opt) {
-                if (empty(trim($opt))) {
+                if (! is_string($opt) || trim($opt) === '') {
                     throw ValidationException::withMessages([
-                        'questions' => "Question {$num}, option " . ($j + 1) . " is empty.",
+                        'questions' => "Question {$num}, option ".($j + 1).' is empty.',
                     ]);
                 }
             }
 
-            $normalized = array_map(fn($o) => strtolower(trim($o)), $options);
+            $normalized = array_map(fn ($option) => mb_strtolower(trim($option)), $options);
             if (count(array_unique($normalized)) !== 4) {
                 throw ValidationException::withMessages([
                     'questions' => "Question {$num} has duplicate options.",
                 ]);
             }
 
-            if ($question->correct_option_index < 0 || $question->correct_option_index > 3) {
+            if ($question->correct_option_index === null || $question->correct_option_index < 0 || $question->correct_option_index > 3) {
                 throw ValidationException::withMessages([
                     'questions' => "Question {$num} has an invalid correct answer.",
                 ]);
@@ -164,22 +169,42 @@ class QuizService
     {
         if ($questionId) {
             $question = $quiz->questions()->findOrFail($questionId);
-            $question->update([
-                'prompt' => $data['prompt'],
-                'options' => $data['options'],
-                'correct_option_index' => $data['correct_option_index'],
+            $question->fill([
+                'prompt' => array_key_exists('prompt', $data)
+                    ? (string) ($data['prompt'] ?? '')
+                    : $question->prompt,
+                'options' => array_key_exists('options', $data)
+                    ? $this->fourOptionSlots($data['options'] ?? [])
+                    : $question->options,
+                'correct_option_index' => array_key_exists('correct_option_index', $data)
+                    ? $data['correct_option_index']
+                    : $question->correct_option_index,
                 'position' => $data['position'] ?? $question->position,
-            ]);
+            ])->save();
+
             return $question;
         }
 
         $maxPos = $quiz->questions()->max('position') ?? 0;
+
         return $quiz->questions()->create([
-            'prompt' => $data['prompt'],
-            'options' => $data['options'],
-            'correct_option_index' => $data['correct_option_index'],
+            'prompt' => (string) ($data['prompt'] ?? ''),
+            'options' => $this->fourOptionSlots($data['options'] ?? []),
+            'correct_option_index' => $data['correct_option_index'] ?? null,
             'position' => $data['position'] ?? ($maxPos + 1),
         ]);
+    }
+
+    /**
+     * @param  array<int, string|null>  $options
+     * @return array<int, string>
+     */
+    private function fourOptionSlots(array $options): array
+    {
+        return array_map(
+            static fn (?string $option): string => $option ?? '',
+            array_pad(array_values($options), 4, ''),
+        );
     }
 
     public function deleteQuestion(Quiz $quiz, int $questionId): void

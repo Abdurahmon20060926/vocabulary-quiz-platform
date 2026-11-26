@@ -2,9 +2,22 @@
 import { ref, computed } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 
-const page = usePage()
-const user = computed(() => page.props.auth?.user)
-const recentPlays = computed(() => page.props.recentPlays || [])
+interface LayoutProps extends Record<string, unknown> {
+  auth: {
+    user: { id: number; name: string; avatar_url: string | null } | null
+  }
+  recentPlays: {
+    quiz_ulid: string
+    quiz_title: string
+    quiz_status: string
+    best_reached: number
+    passed: boolean
+  }[] | null
+}
+
+const page = usePage<LayoutProps>()
+const user = computed(() => page.props.auth.user)
+const recentPlays = computed(() => page.props.recentPlays ?? [])
 
 const showUserMenu = ref(false)
 

@@ -6,10 +6,10 @@ import axios from 'axios'
 interface QuizData {
   id: number
   ulid: string
-  title: string
-  description?: string
-  mode: 'strict' | 'casual'
-  seconds_per_question: number
+  title: string | null
+  description?: string | null
+  mode: 'strict' | 'casual' | null
+  seconds_per_question: number | null
   status: string
   is_listed: boolean
   upvotes_count: number
@@ -38,6 +38,12 @@ interface Suggestion {
   user: { name: string; avatar_url?: string }
 }
 
+interface PageProps extends Record<string, unknown> {
+  auth: {
+    user: { id: number; name: string; avatar_url: string | null } | null
+  }
+}
+
 const props = defineProps<{
   quiz: QuizData
   userStats: UserStats | null
@@ -46,8 +52,8 @@ const props = defineProps<{
   suggestions: Suggestion[]
 }>()
 
-const page = usePage()
-const user = computed(() => page.props.auth?.user)
+const page = usePage<PageProps>()
+const user = computed(() => page.props.auth.user)
 
 // Game state
 type GameState = 'lobby' | 'countdown' | 'playing' | 'checking' | 'result'
@@ -175,6 +181,11 @@ function handleVisibilityChange() {
 }
 
 async function startGame() {
+  if (!props.quiz.mode || props.quiz.seconds_per_question === null) {
+    errorMsg.value = 'Set the quiz mode and timer before starting a test play.'
+    return
+  }
+
   gameState.value = 'countdown'
   countdownValue.value = 3
   errorMsg.value = null
@@ -270,7 +281,10 @@ async function computeHash(salt: string, questionId: number, optionText: string)
 
 function startTimer() {
   stopTimer()
-  timeLeft.value = props.quiz.seconds_per_question
+  const secondsPerQuestion = props.quiz.seconds_per_question
+  if (secondsPerQuestion === null) return
+
+  timeLeft.value = secondsPerQuestion
   timerStartedAt.value = Date.now()
   timerPaused.value = false
   isTimerRunning.value = true
@@ -278,7 +292,7 @@ function startTimer() {
   timerInterval.value = setInterval(() => {
     if (timerPaused.value) return
     const elapsed = (Date.now() - timerStartedAt.value) / 1000
-    const remaining = props.quiz.seconds_per_question - elapsed
+    const remaining = secondsPerQuestion - elapsed
     timeLeft.value = Math.max(0, remaining)
 
     if (timeLeft.value <= 0) {
@@ -482,7 +496,10 @@ async function toggleVote() {
 }
 
 const timerPercent = computed(() => {
-  return Math.min(100, (timeLeft.value / props.quiz.seconds_per_question) * 100)
+  const secondsPerQuestion = props.quiz.seconds_per_question
+  return secondsPerQuestion
+    ? Math.min(100, (timeLeft.value / secondsPerQuestion) * 100)
+    : 0
 })
 
 const timerColor = computed(() => {
@@ -505,13 +522,15 @@ const timerColor = computed(() => {
                 class="inline-flex items-center px-3 py-1 rounded-lg text-sm font-semibold uppercase tracking-wide"
                 :class="quiz.mode === 'strict'
                   ? 'bg-orange-900/50 text-orange-300 border border-orange-700/50'
-                  : 'bg-blue-900/50 text-blue-300 border border-blue-700/50'"
+                  : quiz.mode === 'casual'
+                    ? 'bg-blue-900/50 text-blue-300 border border-blue-700/50'
+                    : 'bg-gray-800 text-gray-400 border border-gray-700'"
               >
-                {{ quiz.mode }}
+                {{ quiz.mode ?? 'Mode not set' }}
               </span>
-              <span class="text-sm text-gray-400">{{ quiz.questions_count }} questions · {{ quiz.seconds_per_question }}s each</span>
+              <span class="text-sm text-gray-400">{{ quiz.questions_count }} questions · {{ quiz.seconds_per_question ? `${quiz.seconds_per_question}s each` : 'Timer not set' }}</span>
             </div>
-            <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">{{ quiz.title }}</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">{{ quiz.title || 'Untitled draft' }}</h1>
             <p v-if="quiz.description" class="text-gray-400 text-sm leading-relaxed mb-4">{{ quiz.description }}</p>
             <div class="flex items-center gap-2">
               <img v-if="quiz.user?.avatar_url" :src="quiz.user.avatar_url" :alt="quiz.user.name" class="w-6 h-6 rounded-full" />
@@ -693,8 +712,8 @@ const timerColor = computed(() => {
               <OptionBtn
                 :text="currentQuestion.options[0]"
                 :displayIndex="0"
-                :selected="selectedDisplayIndex"
-                :failed="failedDisplayIndex"
+                :selected="selectedDisplayIndex ?? undefined"
+                :failed="failedDisplayIndex ?? undefined"
                 :disabled="gameState === 'checking'"
                 hint="W"
                 @select="submitAnswer"
@@ -707,8 +726,8 @@ const timerColor = computed(() => {
                 :key="i"
                 :text="currentQuestion.options[i]"
                 :displayIndex="i"
-                :selected="selectedDisplayIndex"
-                :failed="failedDisplayIndex"
+                :selected="selectedDisplayIndex ?? undefined"
+                :failed="failedDisplayIndex ?? undefined"
                 :disabled="gameState === 'checking'"
                 :hint="['A','S','D'][i-1]"
                 @select="submitAnswer"
@@ -723,8 +742,8 @@ const timerColor = computed(() => {
               :key="i"
               :text="opt"
               :displayIndex="i"
-              :selected="selectedDisplayIndex"
-              :failed="failedDisplayIndex"
+              :selected="selectedDisplayIndex ?? undefined"
+              :failed="failedDisplayIndex ?? undefined"
               :disabled="gameState === 'checking'"
               @select="submitAnswer"
             />
@@ -794,7 +813,7 @@ const timerColor = computed(() => {
 </template>
 
 <script lang="ts">
-import { defineComponent, h, computed } from 'vue'
+import { defineComponent, h } from 'vue'
 
 // Inline OptionBtn component
 const OptionBtn = defineComponent({
@@ -809,15 +828,14 @@ const OptionBtn = defineComponent({
   },
   emits: ['select'],
   setup(props, { emit }) {
-    const isSelected = computed(() => props.selected === props.displayIndex)
-    const isFailed = computed(() => props.failed === props.displayIndex)
-
     return () => {
+      const isSelected = props.selected === props.displayIndex
+      const isFailed = props.failed === props.displayIndex
       let cls = 'relative w-full text-left p-4 rounded-xl border-2 font-medium text-sm transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/50 '
 
-      if (isFailed.value) {
+      if (isFailed) {
         cls += 'border-red-500 bg-red-900/30 text-red-200 ring-2 ring-red-500/40 '
-      } else if (isSelected.value) {
+      } else if (isSelected) {
         cls += 'border-brand-500 bg-brand-900/20 text-brand-100 '
       } else if (props.disabled) {
         cls += 'border-gray-700 bg-gray-900 text-gray-400 opacity-60 cursor-default '

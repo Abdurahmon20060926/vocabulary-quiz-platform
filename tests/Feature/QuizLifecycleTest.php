@@ -1,16 +1,19 @@
 <?php
 
 use App\Models\Quiz;
-use App\Models\Question;
+use App\Models\QuizRun;
+use App\Models\QuizUserStat;
+use App\Models\RunAnswer;
 use App\Models\User;
+use App\Services\SuggestionService;
 use Illuminate\Support\Str;
 
 function makeUser(array $attrs = []): User
 {
     return User::create(array_merge([
-        'google_id' => 'g_' . Str::random(8),
+        'google_id' => 'g_'.Str::random(8),
         'name' => 'Test User',
-        'email' => Str::random(8) . '@test.example',
+        'email' => Str::random(8).'@test.example',
     ], $attrs));
 }
 
@@ -85,7 +88,7 @@ test('publish requires 5-15 questions', function () {
     $this->actingAs($user)
         ->postJson("/studio/quizzes/{$quiz->ulid}/publish", ['is_listed' => true])
         ->assertStatus(422)
-        ->assertJsonPath('errors.questions.0', fn($v) => str_contains($v, 'between 5 and 15'));
+        ->assertJsonPath('errors.questions.0', fn ($v) => str_contains($v, 'between 5 and 15'));
 });
 
 test('publish succeeds with 5 valid questions', function () {
@@ -110,7 +113,7 @@ test('unpublishing abandons in-progress runs by others', function () {
     addQuestions($quiz, 5);
 
     // Create an in-progress run by player
-    $run = \App\Models\QuizRun::create([
+    $run = QuizRun::create([
         'quiz_id' => $quiz->id,
         'user_id' => $player->id,
         'mode' => 'casual',
@@ -123,7 +126,139 @@ test('unpublishing abandons in-progress runs by others', function () {
         ->postJson("/studio/quizzes/{$quiz->ulid}/unpublish")
         ->assertStatus(200);
 
-    expect(\App\Models\QuizRun::find($run->id)->status)->toBe('abandoned');
+    expect(QuizRun::find($run->id)->status)->toBe('in_progress');
+
+    $this->actingAs($player)
+        ->postJson("/runs/{$run->id}/submit", ['answers' => []])
+        ->assertOk()
+        ->assertJson(['verdict' => 'abandoned', 'reason' => 'quiz_unavailable']);
+
+    expect(QuizRun::find($run->id)->status)->toBe('abandoned');
+});
+
+test('creator can view and start an unpublished quiz while other players cannot', function () {
+    $creator = makeUser();
+    $player = makeUser();
+    $quiz = makeQuiz($creator, ['status' => 'unpublished', 'mode' => 'strict']);
+    addQuestions($quiz, 5);
+
+    $this->actingAs($creator)
+        ->get("/q/{$quiz->ulid}")
+        ->assertInertia(fn ($page) => $page
+            ->component('Quiz')
+            ->where('quiz.ulid', $quiz->ulid));
+
+    $this->actingAs($creator)
+        ->postJson("/q/{$quiz->ulid}/runs")
+        ->assertOk()
+        ->assertJsonStructure(['run_id', 'mode', 'question']);
+
+    $this->actingAs($player)
+        ->get("/q/{$quiz->ulid}")
+        ->assertInertia(fn ($page) => $page->component('QuizUnavailable'));
+
+    $this->actingAs($player)
+        ->postJson("/q/{$quiz->ulid}/runs")
+        ->assertNotFound();
+
+    $this->postJson("/q/{$quiz->ulid}/runs")
+        ->assertNotFound();
+});
+
+test('draft saving allows missing quiz fields and incomplete question data', function () {
+    $user = makeUser();
+
+    $response = $this->actingAs($user)
+        ->postJson('/studio/quizzes', [])
+        ->assertCreated()
+        ->assertJsonStructure(['ulid', 'redirect']);
+
+    $quiz = Quiz::where('ulid', $response->json('ulid'))->firstOrFail();
+    expect($quiz->title)->toBeNull()
+        ->and($quiz->mode)->toBeNull()
+        ->and($quiz->seconds_per_question)->toBeNull();
+
+    $questionResponse = $this->actingAs($user)
+        ->postJson("/studio/quizzes/{$quiz->ulid}/questions", [
+            'prompt' => '',
+            'options' => ['partial option'],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('question.prompt', '')
+        ->assertJsonPath('question.options', ['partial option', '', '', ''])
+        ->assertJsonPath('question.correct_option_index', null);
+
+    expect($questionResponse->json('question.options'))->toHaveCount(4);
+});
+
+test('publishing rejects drafts without a title and complete questions', function () {
+    $user = makeUser();
+    $quiz = makeQuiz($user, ['title' => null, 'mode' => null, 'seconds_per_question' => null]);
+    addQuestions($quiz, 5);
+    $quiz->questions()->first()->update([
+        'options' => ['Same', ' same ', '', 'Other'],
+        'correct_option_index' => null,
+    ]);
+
+    $this->actingAs($user)
+        ->postJson("/studio/quizzes/{$quiz->ulid}/publish", ['is_listed' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['title']);
+
+    $quiz->update(['title' => 'Ready title', 'mode' => 'casual', 'seconds_per_question' => 5]);
+
+    $this->actingAs($user)
+        ->postJson("/studio/quizzes/{$quiz->ulid}/publish", ['is_listed' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['questions']);
+});
+
+test('creator runs are excluded from per-question and player analytics', function () {
+    $creator = makeUser();
+    $player = makeUser();
+    $quiz = makeQuiz($creator, ['status' => 'published']);
+    addQuestions($quiz, 5);
+    $question = $quiz->questions()->first();
+
+    foreach ([$creator, $player] as $user) {
+        $run = QuizRun::create([
+            'quiz_id' => $quiz->id,
+            'user_id' => $user->id,
+            'mode' => 'casual',
+            'question_order' => [$question->id],
+            'status' => 'failed',
+            'reached' => 0,
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        RunAnswer::create([
+            'quiz_run_id' => $run->id,
+            'question_id' => $question->id,
+            'chosen_option_index' => 1,
+            'is_correct' => false,
+            'failure_reason' => 'wrong_answer',
+            'time_ms' => 500,
+            'created_at' => now(),
+        ]);
+
+        QuizUserStat::create([
+            'user_id' => $user->id,
+            'quiz_id' => $quiz->id,
+            'attempts' => 1,
+            'best_reached' => 0,
+            'passed' => false,
+            'last_played_at' => now(),
+        ]);
+    }
+
+    $this->actingAs($creator)
+        ->get("/studio/quizzes/{$quiz->ulid}/stats")
+        ->assertInertia(fn ($page) => $page
+            ->where('questionStats.0.total_answers', 1)
+            ->where('uniquePlayers', 1)
+            ->has('playerStats', 1)
+            ->where('playerStats.0.user_id', $player->id));
 });
 
 // === Vote Toggle & Own-quiz Rule ===
@@ -177,7 +312,7 @@ test('creator runs do not count toward quiz stats', function () {
     $questionIds = $quiz->questions()->pluck('id')->toArray();
     $salt = bin2hex(random_bytes(16));
 
-    $run = \App\Models\QuizRun::create([
+    $run = QuizRun::create([
         'quiz_id' => $quiz->id,
         'user_id' => $creator->id,
         'mode' => 'casual',
@@ -216,7 +351,7 @@ test('casual mode server rejects tampered answers', function () {
     $questionIds = $quiz->questions()->pluck('id')->toArray();
     $salt = bin2hex(random_bytes(16));
 
-    $run = \App\Models\QuizRun::create([
+    $run = QuizRun::create([
         'quiz_id' => $quiz->id,
         'user_id' => $user->id,
         'mode' => 'casual',
@@ -247,7 +382,7 @@ test('casual mode rejects an incomplete answer log', function () {
     $quiz = makeQuiz($user, ['status' => 'published', 'mode' => 'casual']);
     addQuestions($quiz, 5);
 
-    $run = \App\Models\QuizRun::create([
+    $run = QuizRun::create([
         'quiz_id' => $quiz->id,
         'user_id' => $user->id,
         'mode' => 'casual',
@@ -280,7 +415,7 @@ test('suggestions cap at 3 per creator', function () {
     addQuestions($baseQuiz, 5);
     $baseQuiz->update(['status' => 'published']);
 
-    $service = new \App\Services\SuggestionService();
+    $service = new SuggestionService;
     $suggestions = $service->getSuggestions($baseQuiz, $viewer->id);
 
     $creatorCount = $suggestions->where('user_id', $creator->id)->count();

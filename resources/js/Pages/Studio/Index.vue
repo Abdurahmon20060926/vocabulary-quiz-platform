@@ -6,12 +6,12 @@ import axios from 'axios'
 interface StudioQuiz {
   id: number
   ulid: string
-  title: string
-  mode: string
+  title: string | null
+  mode: 'strict' | 'casual' | null
   status: string
   is_listed: boolean
   questions_count: number
-  seconds_per_question: number
+  seconds_per_question: number | null
   runs_count: number
   upvotes_count: number
   published_at: string | null
@@ -140,8 +140,9 @@ async function confirmPublish() {
               </span>
             </div>
 
-            <h3 class="font-semibold text-gray-100 mb-1">{{ quiz.title }}</h3>
+            <h3 class="font-semibold text-gray-100 mb-1">{{ quiz.title || 'Untitled draft' }}</h3>
             <div class="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+              <span>{{ quiz.mode ? `${quiz.mode} · ${quiz.seconds_per_question ?? 'Timer not set'}${quiz.seconds_per_question ? 's' : ''}` : 'Mode not set' }}</span>
               <span>{{ quiz.questions_count }} questions</span>
               <span>{{ quiz.runs_count }} plays</span>
               <span>{{ quiz.upvotes_count }} votes</span>

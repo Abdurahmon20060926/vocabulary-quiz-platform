@@ -2,13 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\QuizRun;
-use App\Models\Question;
-use App\Models\RunAnswer;
 use App\Models\QuizUserStat;
+use App\Models\RunAnswer;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
 
 class RunService
 {
@@ -22,6 +21,32 @@ class RunService
     public function startRun(Quiz $quiz, ?int $userId, ?string $guestToken): array
     {
         $questions = $quiz->questions()->get();
+
+        if (! in_array($quiz->mode, ['strict', 'casual'], true)) {
+            throw new \DomainException('Choose a quiz mode before test playing this draft.');
+        }
+
+        if ($quiz->seconds_per_question === null || $quiz->seconds_per_question < 2 || $quiz->seconds_per_question > 10) {
+            throw new \DomainException('Choose a timer between 2 and 10 seconds before test playing this draft.');
+        }
+
+        if ($questions->isEmpty()) {
+            throw new \DomainException('Add at least one complete question before test playing this draft.');
+        }
+
+        foreach ($questions as $question) {
+            if (
+                trim($question->prompt) === ''
+                || count($question->options) !== 4
+                || collect($question->options)->contains(fn ($option) => ! is_string($option) || trim($option) === '')
+                || $question->correct_option_index === null
+                || $question->correct_option_index < 0
+                || $question->correct_option_index > 3
+            ) {
+                throw new \DomainException('Complete every question before test playing this draft.');
+            }
+        }
+
         $questionIds = $questions->pluck('id')->toArray();
         shuffle($questionIds);
 
@@ -62,7 +87,7 @@ class RunService
         $firstQid = $questionIds[0];
         $firstQ = $questions->firstWhere('id', $firstQid);
         $perm = $optionOrders[$firstQid];
-        $displayOptions = array_map(fn($i) => $firstQ->options[$i], $perm);
+        $displayOptions = array_map(fn ($i) => $firstQ->options[$i], $perm);
 
         return [
             'run' => $run,
@@ -93,7 +118,7 @@ class RunService
         $questionsData = [];
         foreach ($questions as $q) {
             $correctText = $q->options[$q->correct_option_index];
-            $hash = hash('sha256', $salt . ':' . $q->id . ':' . $correctText);
+            $hash = hash('sha256', $salt.':'.$q->id.':'.$correctText);
             $questionsData[] = [
                 'id' => $q->id,
                 'prompt' => $q->prompt,
@@ -111,7 +136,7 @@ class RunService
 
     public function submitStrictAnswer(QuizRun $run, array $data): array
     {
-        if (!$run->isInProgress()) {
+        if (! $run->isInProgress()) {
             return ['error' => 'Run is not in progress.'];
         }
 
@@ -152,7 +177,7 @@ class RunService
 
         $timeMsServer = (int) ($elapsedSeconds * 1000);
 
-        if (!$isCorrect) {
+        if (! $isCorrect) {
             return $this->finishRun($run, 'failed', 'wrong_answer', $originalIndex, $timeMsServer);
         }
 
@@ -182,7 +207,7 @@ class RunService
         $nextQid = $questionIds[$nextIndex];
         $nextPerm = $optionOrders[$nextQid] ?? [0, 1, 2, 3];
         $nextQ = Question::find($nextQid);
-        $nextDisplayOptions = array_map(fn($i) => $nextQ->options[$i], $nextPerm);
+        $nextDisplayOptions = array_map(fn ($i) => $nextQ->options[$i], $nextPerm);
 
         $run->update([
             'current_index' => $nextIndex,
@@ -203,7 +228,7 @@ class RunService
 
     public function submitCasualRun(QuizRun $run, array $answers): array
     {
-        if (!$run->isInProgress()) {
+        if (! $run->isInProgress()) {
             return ['error' => 'Run is not in progress.'];
         }
 
@@ -230,10 +255,10 @@ class RunService
             $timeMs = max(0, (int) ($entry['time_ms'] ?? 0));
 
             if (
-                !isset($questionOrder[$position])
+                ! isset($questionOrder[$position])
                 || $questionOrder[$position] !== $questionId
                 || isset($seenQuestionIds[$questionId])
-                || !in_array($clientReason, [null, 'timeout', 'focus_lost'], true)
+                || ! in_array($clientReason, [null, 'timeout', 'focus_lost'], true)
             ) {
                 return ['error' => 'The answer log is invalid.'];
             }
@@ -259,7 +284,7 @@ class RunService
             if (
                 $clientReason === 'timeout'
                 || $chosenIndex === null
-                || !is_int($chosenIndex) && !ctype_digit((string) $chosenIndex)
+                || ! is_int($chosenIndex) && ! ctype_digit((string) $chosenIndex)
                 || (int) $chosenIndex < 0
                 || (int) $chosenIndex > 3
             ) {
@@ -290,7 +315,7 @@ class RunService
                 'created_at' => now(),
             ];
 
-            if (!$isCorrect) {
+            if (! $isCorrect) {
                 $finalStatus = 'failed';
                 $finalReason = 'wrong_answer';
                 break;
@@ -312,6 +337,7 @@ class RunService
             }
 
             $run->update(['reached' => $reached]);
+
             return $this->bookkeepRunEnd($run, $finalStatus, $finalReason);
         });
     }
@@ -357,7 +383,7 @@ class RunService
         $quiz = $run->quiz;
         $isCreator = $run->user_id && $run->user_id === $quiz->user_id;
 
-        if (!$isCreator) {
+        if (! $isCreator) {
             DB::table('quizzes')->where('id', $quiz->id)->update([
                 'runs_count' => DB::raw('runs_count + 1'),
                 'reached_sum' => DB::raw("reached_sum + {$run->reached}"),
@@ -375,7 +401,7 @@ class RunService
             ]);
             $existing->attempts = ($existing->attempts ?? 0) + 1;
             $existing->best_reached = max($existing->best_reached ?? 0, $run->reached);
-            if ($status === 'passed' && !$existing->passed) {
+            if ($status === 'passed' && ! $existing->passed) {
                 $existing->passed = true;
                 $existing->first_passed_at = now();
             }
@@ -411,13 +437,17 @@ class RunService
 
     public function getUserAttemptInfo(int $quizId, ?int $userId): ?array
     {
-        if (!$userId) return null;
+        if (! $userId) {
+            return null;
+        }
 
         $stat = QuizUserStat::where('user_id', $userId)
             ->where('quiz_id', $quizId)
             ->first();
 
-        if (!$stat) return null;
+        if (! $stat) {
+            return null;
+        }
 
         return [
             'attempts' => $stat->attempts,

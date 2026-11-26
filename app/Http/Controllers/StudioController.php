@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Quiz;
-use App\Models\RunAnswer;
 use App\Models\QuizRun;
 use App\Models\QuizUserStat;
+use App\Models\RunAnswer;
 use App\Services\QuizService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,7 +25,7 @@ class StudioController extends Controller
             ->withCount('questions')
             ->orderByDesc('updated_at')
             ->get()
-            ->map(fn($q) => [
+            ->map(fn ($q) => [
                 'id' => $q->id,
                 'ulid' => $q->ulid,
                 'title' => $q->title,
@@ -51,16 +53,23 @@ class StudioController extends Controller
         ]);
     }
 
-    public function store(Request $request): \Illuminate\Http\RedirectResponse
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
-            'title' => 'required|string|max:80',
+            'title' => 'nullable|string|max:80',
             'description' => 'nullable|string|max:500',
-            'mode' => 'required|in:strict,casual',
-            'seconds_per_question' => 'required|integer|min:2|max:10',
+            'mode' => 'nullable|in:strict,casual',
+            'seconds_per_question' => 'nullable|integer|min:2|max:10',
         ]);
 
         $quiz = $this->quizService->createDraft($request->user(), $data);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ulid' => $quiz->ulid,
+                'redirect' => route('studio.quizzes.edit', $quiz->ulid),
+            ], 201);
+        }
 
         return redirect()->route('studio.quizzes.edit', $quiz->ulid);
     }
@@ -80,7 +89,7 @@ class StudioController extends Controller
                 'status' => $quiz->status,
                 'is_listed' => $quiz->is_listed,
             ],
-            'questions' => $quiz->questions->map(fn($q) => [
+            'questions' => $quiz->questions->map(fn ($q) => [
                 'id' => $q->id,
                 'position' => $q->position,
                 'prompt' => $q->prompt,
@@ -90,19 +99,19 @@ class StudioController extends Controller
         ]);
     }
 
-    public function update(Request $request, Quiz $quiz): \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
+    public function update(Request $request, Quiz $quiz): JsonResponse|RedirectResponse
     {
         $this->authorizeCreator($request, $quiz);
 
-        if (!$quiz->isDraft()) {
+        if (! $quiz->isDraft()) {
             return response()->json(['error' => 'Only drafts can be edited'], 422);
         }
 
         $data = $request->validate([
-            'title' => 'required|string|max:80',
+            'title' => 'nullable|string|max:80',
             'description' => 'nullable|string|max:500',
-            'mode' => 'required|in:strict,casual',
-            'seconds_per_question' => 'required|integer|min:2|max:10',
+            'mode' => 'nullable|in:strict,casual',
+            'seconds_per_question' => 'nullable|integer|min:2|max:10',
         ]);
 
         $this->quizService->updateDraft($quiz, $data);
@@ -110,10 +119,11 @@ class StudioController extends Controller
         if ($request->wantsJson()) {
             return response()->json(['success' => true]);
         }
+
         return redirect()->route('studio.quizzes.edit', $quiz->ulid)->with('success', 'Quiz saved.');
     }
 
-    public function destroy(Request $request, Quiz $quiz): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+    public function destroy(Request $request, Quiz $quiz): RedirectResponse|JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
@@ -123,16 +133,18 @@ class StudioController extends Controller
             if ($request->wantsJson()) {
                 return response()->json(['error' => $e->getMessage()], 422);
             }
+
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
         if ($request->wantsJson()) {
             return response()->json(['success' => true]);
         }
+
         return redirect()->route('studio')->with('success', 'Quiz deleted.');
     }
 
-    public function publish(Request $request, Quiz $quiz): \Illuminate\Http\JsonResponse
+    public function publish(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
@@ -142,18 +154,18 @@ class StudioController extends Controller
 
         try {
             $this->quizService->publish($quiz, $data['is_listed']);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['errors' => $e->errors()], 422);
         }
 
         return response()->json(['success' => true, 'status' => 'published']);
     }
 
-    public function unpublish(Request $request, Quiz $quiz): \Illuminate\Http\JsonResponse
+    public function unpublish(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
-        if (!$quiz->isPublished()) {
+        if (! $quiz->isPublished()) {
             return response()->json(['error' => 'Quiz is not published'], 422);
         }
 
@@ -162,7 +174,7 @@ class StudioController extends Controller
         return response()->json(['success' => true, 'status' => 'unpublished']);
     }
 
-    public function duplicate(Request $request, Quiz $quiz): \Illuminate\Http\JsonResponse
+    public function duplicate(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
@@ -185,7 +197,13 @@ class StudioController extends Controller
         $questionStats = [];
         foreach ($quiz->questions as $question) {
             $answers = RunAnswer::where('question_id', $question->id)
-                ->whereHas('run', fn($q) => $q->where('status', '!=', 'in_progress'))
+                ->whereHas('run', function ($query) use ($quiz) {
+                    $query->whereIn('status', ['passed', 'failed'])
+                        ->where(function ($query) use ($quiz) {
+                            $query->whereNull('user_id')
+                                ->orWhere('user_id', '!=', $quiz->user_id);
+                        });
+                })
                 ->get();
 
             $total = $answers->count();
@@ -223,9 +241,10 @@ class StudioController extends Controller
         // Per-player stats (non-guest)
         $playerStats = QuizUserStat::with('user:id,name,avatar_url')
             ->where('quiz_id', $quiz->id)
+            ->where('user_id', '!=', $quiz->user_id)
             ->orderByDesc('last_played_at')
             ->get()
-            ->map(fn($s) => [
+            ->map(fn ($s) => [
                 'user_id' => $s->user_id,
                 'name' => $s->user->name ?? 'Unknown',
                 'avatar_url' => $s->user->avatar_url ?? null,
@@ -240,7 +259,7 @@ class StudioController extends Controller
         $guestRuns = QuizRun::where('quiz_id', $quiz->id)
             ->whereNull('user_id')
             ->whereNotNull('guest_token')
-            ->where('status', '!=', 'in_progress')
+            ->whereIn('status', ['passed', 'failed'])
             ->get();
 
         $guestStats = [
@@ -250,10 +269,14 @@ class StudioController extends Controller
         ];
 
         // Unique players
-        $uniqueUsers = QuizUserStat::where('quiz_id', $quiz->id)->distinct('user_id')->count('user_id');
+        $uniqueUsers = QuizUserStat::where('quiz_id', $quiz->id)
+            ->where('user_id', '!=', $quiz->user_id)
+            ->distinct('user_id')
+            ->count('user_id');
         $uniqueGuests = QuizRun::where('quiz_id', $quiz->id)
             ->whereNull('user_id')
             ->whereNotNull('guest_token')
+            ->whereIn('status', ['passed', 'failed'])
             ->distinct('guest_token')
             ->count('guest_token');
 
@@ -278,21 +301,15 @@ class StudioController extends Controller
     }
 
     // Question CRUD endpoints
-    public function storeQuestion(Request $request, Quiz $quiz): \Illuminate\Http\JsonResponse
+    public function storeQuestion(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
-        if (!$quiz->isDraft()) {
+        if (! $quiz->isDraft()) {
             return response()->json(['error' => 'Only drafts can be edited'], 422);
         }
 
-        $data = $request->validate([
-            'prompt' => 'required|string|max:200',
-            'options' => 'required|array|size:4',
-            'options.*' => 'required|string|max:80',
-            'correct_option_index' => 'required|integer|min:0|max:3',
-            'position' => 'nullable|integer|min:0',
-        ]);
+        $data = $this->validateQuestionData($request);
 
         $question = $this->quizService->upsertQuestion($quiz, $data);
 
@@ -307,21 +324,15 @@ class StudioController extends Controller
         ], 201);
     }
 
-    public function updateQuestion(Request $request, Quiz $quiz, int $questionId): \Illuminate\Http\JsonResponse
+    public function updateQuestion(Request $request, Quiz $quiz, int $questionId): JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
-        if (!$quiz->isDraft()) {
+        if (! $quiz->isDraft()) {
             return response()->json(['error' => 'Only drafts can be edited'], 422);
         }
 
-        $data = $request->validate([
-            'prompt' => 'required|string|max:200',
-            'options' => 'required|array|size:4',
-            'options.*' => 'required|string|max:80',
-            'correct_option_index' => 'required|integer|min:0|max:3',
-            'position' => 'nullable|integer|min:0',
-        ]);
+        $data = $this->validateQuestionData($request);
 
         $question = $this->quizService->upsertQuestion($quiz, $data, $questionId);
 
@@ -336,11 +347,11 @@ class StudioController extends Controller
         ]);
     }
 
-    public function destroyQuestion(Request $request, Quiz $quiz, int $questionId): \Illuminate\Http\JsonResponse
+    public function destroyQuestion(Request $request, Quiz $quiz, int $questionId): JsonResponse
     {
         $this->authorizeCreator($request, $quiz);
 
-        if (!$quiz->isDraft()) {
+        if (! $quiz->isDraft()) {
             return response()->json(['error' => 'Only drafts can be edited'], 422);
         }
 
@@ -352,8 +363,22 @@ class StudioController extends Controller
     private function authorizeCreator(Request $request, Quiz $quiz): void
     {
         $user = $request->user();
-        if (!$user || $user->id !== $quiz->user_id) {
+        if (! $user || $user->id !== $quiz->user_id) {
             abort(403);
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validateQuestionData(Request $request): array
+    {
+        return $request->validate([
+            'prompt' => 'nullable|string|max:200',
+            'options' => 'nullable|array|max:4',
+            'options.*' => 'nullable|string|max:80',
+            'correct_option_index' => 'nullable|integer|min:0|max:3',
+            'position' => 'nullable|integer|min:0',
+        ]);
     }
 }
