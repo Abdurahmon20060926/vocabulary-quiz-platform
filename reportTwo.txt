@@ -1,0 +1,153 @@
+VOCABULARY QUIZ PLATFORM
+PROJECT WORK AND CURRENT STATUS
+Prepared: 2026-11-26, 11:47 (+05:00)
+Requirements reviewed: attached quiz-prd-v2.pdf
+
+1. CURRENT OVERVIEW
+
+The project implements the central requirements for a vocabulary quiz platform.
+Guests can discover and play quizzes. Signed-in users can create, publish, and
+manage quizzes through Creator Studio. Strict and casual gameplay, Explore,
+My Plays, voting, creator analytics, quiz suggestions, and global search are
+implemented.
+
+The automated checks pass and the recent work has been pushed to the remote
+master branch. The project is not yet a live production deployment. Docker
+Compose and production image execution could not be verified in this
+environment because Docker is unavailable.
+
+
+2. WORK COMPLETED
+
+Authentication and guest play
+- Implemented Google sign-in using Laravel Socialite, including creating or
+  refreshing user details on login.
+- Added guest tokens for playing and tracking runs without an account.
+- Protected run requests by checking the user or guest token that owns the run.
+- Kept email addresses private in public-facing data.
+- Added tests using Socialite test doubles; live Google sign-in with real
+  credentials remains to be checked.
+
+Quiz lifecycle and creator tools
+- Implemented draft, published, and unpublished quiz states.
+- Allowed drafts to be incomplete while they are being authored; publishing
+  performs the full quiz and question validation.
+- Enforced published quiz immutability and draft-only deletion.
+- Added duplicate-as-draft behavior for eligible quizzes.
+- Supported listed quizzes on Explore and unlisted quizzes playable by link.
+- Enabled creators to test-play their own drafts and unpublished quizzes.
+- Made other players' active runs unavailable after a quiz is unpublished.
+- Excluded creators' own test runs from counted quiz totals.
+
+Gameplay and reliability
+- Implemented strict mode, where the server controls question order,
+  answer checking, and timing.
+- Implemented casual mode, where the client checks salted answer hashes and
+  the server validates the submitted answer log.
+- Added sudden-death handling for wrong answers, timeouts, and focus loss.
+- Hardened strict answer validation, timing boundaries, run ownership, and
+  duplicate submissions.
+- Ensured run completion and related statistics are recorded transactionally.
+- Improved client handling of answer-checking requests and uncertain network
+  outcomes so they are not shown as confirmed results.
+- Implemented the countdown, retry flow, keyboard controls, touch layout,
+  confetti, and mute preference.
+
+Discovery and creator analytics
+- Added Explore search, mode filters, and popular, most-played, and newest
+  sorting.
+- Added a global top-bar search that navigates through typed Wayfinder routes.
+- Implemented My Plays and unavailable-quiz handling.
+- Added voting rules and transaction-safe vote counts.
+- Implemented creator totals, player summaries, question-level analytics, and
+  casual-mode self-reported labels.
+- Implemented the configured suggestion scoring, low-play neutral score,
+  passed-quiz exclusion, and per-creator result limit.
+
+Database migration correction
+- Restored the historical quiz-runs table migration instead of depending on
+  edits to a migration that may already have run on an existing database.
+- Added a follow-up migration that changes the user foreign key to cascade on
+  user deletion and adds a PostgreSQL check requiring exactly one run owner.
+- Verified that valid existing runs survive this migration and that deleting a
+  run owner removes their run.
+- Added an audit query and safe PostgreSQL smoke-test instructions. The actual
+  configured application database has not been migrated here.
+
+Project documentation
+- Created this report and a project status summary.
+- Added PostgreSQL migration smoke-test instructions.
+- Added a manual checklist for browser behavior that is not covered by the
+  feature-test suite.
+- Updated the README to link to these project-status materials.
+
+
+3. CURRENT TECHNICAL STACK
+
+- PHP 8.3.6 and Laravel 13.43.0
+- Inertia Laravel adapter 3.7.0 and Vue client 3.11.0
+- Vue 3.5.46, TypeScript, and strict TypeScript compiler settings
+- Tailwind CSS 4.3.5 and Vite 8.3.8
+- Laravel Wayfinder 0.1.23 and Socialite 5.33.0
+- Pest 4.7.8 and PHPUnit 12.5.33
+- PostgreSQL for application/production data and SQLite in memory for tests
+
+The repository has Docker Compose development and production configuration,
+including PHP-FPM and Nginx. These container configurations have not been
+started or built in this environment.
+
+
+4. VERIFICATION COMPLETED
+
+- `php artisan test --compact`: 46 tests passed, with 312 assertions.
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+- Pint formatting for the changed PHP files: passed.
+- `git diff --check`: passed.
+- SQLite migration smoke check: fresh migration, rollback, and re-application
+  passed.
+- Isolated PostgreSQL 16.15 checks: fresh migrations; rollback and
+  re-application; existing-run upgrade preservation; rejection of runs with
+  zero or two owners; and cascade deletion all passed.
+- Browser check: global search navigation and a narrow/mobile layout were
+  checked manually.
+
+The PostgreSQL checks used a temporary isolated database, not the application's
+configured database or a production database. The live Google OAuth flow,
+Docker Compose startup, and production image build have not been verified.
+
+
+5. REMAINING WORK
+
+1. Back up the real target PostgreSQL database and run the owner-audit query
+   before applying the migration. Resolve any legacy rows with missing or
+   duplicate owners deliberately; do not guess or discard their ownership.
+2. Apply the forward migration to the actual database with `php artisan migrate`.
+   Do not use `migrate:fresh` on a database that contains data.
+3. On a machine with Docker, run the Compose smoke test and build/run the
+   production image. Verify database connectivity, health, assets, logs, and
+   backups.
+4. Configure the production domain, HTTPS, secure application/database
+   environment values, and Google OAuth credentials. Perform a real sign-in
+   test before launch.
+5. Complete remaining manual checks from `docs/MANUAL_TEST_CHECKLIST.md`:
+   keyboard and touch behavior, focus-loss handling, countdown/timers, sounds,
+   and result screens across supported devices.
+6. Replace the placeholder game-loop, fail, and win audio assets when approved
+   final sounds are available.
+
+
+6. OVERALL STATUS
+
+The main product requirements are implemented and covered by automated feature
+tests. Both SQLite and PostgreSQL migration behavior have been checked, and the
+frontend typecheck and production asset build pass. The work remaining is
+primarily verification against the actual deployment environment, production
+configuration, manual client checks, and final sound assets. The application
+has not yet been deployed to production.
+
+Git status: the recent commits are on `master`, and the local branch is
+synchronized with `origin/master`.
+
+The code was successfully pushed to `origin master` with the
+`git push origin master` command.
