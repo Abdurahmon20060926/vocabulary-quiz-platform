@@ -66,9 +66,21 @@ class QuizService
 
     public function duplicate(Quiz $quiz, User $user): Quiz
     {
+        if (! $quiz->isPublished() && ! $quiz->isUnpublished()) {
+            throw ValidationException::withMessages([
+                'quiz' => 'Only published or unpublished quizzes can be duplicated.',
+            ]);
+        }
+
         return DB::transaction(function () use ($quiz, $user) {
+            $copySuffix = ' (copy)';
+            $sourceTitle = is_string($quiz->title) && trim($quiz->title) !== ''
+                ? $quiz->title
+                : 'Untitled';
+            $copyTitle = rtrim(mb_substr($sourceTitle, 0, 80 - mb_strlen($copySuffix))).$copySuffix;
+
             $newQuiz = $user->quizzes()->create([
-                'title' => $quiz->title.' (copy)',
+                'title' => $copyTitle,
                 'description' => $quiz->description,
                 'mode' => $quiz->mode,
                 'seconds_per_question' => $quiz->seconds_per_question,

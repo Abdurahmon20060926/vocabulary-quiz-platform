@@ -10,7 +10,9 @@ use Illuminate\Support\Str;
 class QuizRun extends Model
 {
     public $incrementing = false;
+
     protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -33,6 +35,13 @@ class QuizRun extends Model
     protected static function booted(): void
     {
         static::creating(function (QuizRun $run) {
+            $hasUser = $run->user_id !== null;
+            $hasGuestToken = $run->guest_token !== null;
+
+            if ($hasUser === $hasGuestToken) {
+                throw new \InvalidArgumentException('A quiz run must have exactly one owner.');
+            }
+
             if (empty($run->id)) {
                 $run->id = strtolower(Str::ulid());
             }
@@ -65,9 +74,10 @@ class QuizRun extends Model
     public function currentQuestion(): ?Question
     {
         $ids = $this->question_order;
-        if (!isset($ids[$this->current_index])) {
+        if (! isset($ids[$this->current_index])) {
             return null;
         }
+
         return Question::find($ids[$this->current_index]);
     }
 

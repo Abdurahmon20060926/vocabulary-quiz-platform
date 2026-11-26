@@ -111,7 +111,7 @@ answer.post = (args: { run: string | number } | [run: string | number ] | string
 
 /**
 * @see \App\Http\Controllers\RunController::submit
-* @see app/Http/Controllers/RunController.php:83
+* @see app/Http/Controllers/RunController.php:103
 * @route '/runs/{run}/submit'
 */
 export const submit = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -126,7 +126,7 @@ submit.definition = {
 
 /**
 * @see \App\Http\Controllers\RunController::submit
-* @see app/Http/Controllers/RunController.php:83
+* @see app/Http/Controllers/RunController.php:103
 * @route '/runs/{run}/submit'
 */
 submit.url = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions) => {
@@ -153,7 +153,7 @@ submit.url = (args: { run: string | number } | [run: string | number ] | string 
 
 /**
 * @see \App\Http\Controllers\RunController::submit
-* @see app/Http/Controllers/RunController.php:83
+* @see app/Http/Controllers/RunController.php:103
 * @route '/runs/{run}/submit'
 */
 submit.post = (args: { run: string | number } | [run: string | number ] | string | number, options?: RouteQueryOptions): RouteDefinition<'post'> => ({

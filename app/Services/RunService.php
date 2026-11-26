@@ -136,199 +136,229 @@ class RunService
 
     public function submitStrictAnswer(QuizRun $run, array $data): array
     {
-        if (! $run->isInProgress()) {
-            return ['error' => 'Run is not in progress.'];
-        }
+        return DB::transaction(function () use ($run, $data) {
+            $run = QuizRun::query()->lockForUpdate()->findOrFail($run->id);
 
-        $now = now();
-        $issuedAt = $run->current_issued_at;
-        $quiz = $run->quiz;
-        // Use absolute diff - issued_at should be in the past
-        $elapsedSeconds = $issuedAt ? abs($now->diffInMilliseconds($issuedAt)) / 1000 : 0;
-        $timeLimit = $quiz->seconds_per_question + $this->gracePeriod;
+            if (! $run->isInProgress()) {
+                return ['error' => 'Run is not in progress.'];
+            }
 
-        // Check for timeout by server clock
-        $isServerTimeout = $elapsedSeconds > $timeLimit;
-        $reason = $data['reason'] ?? null;
+            $now = now();
+            $issuedAt = $run->current_issued_at;
+            $quiz = $run->quiz;
+            $nowMicroseconds = ((int) $now->format('U') * 1_000_000) + (int) $now->format('u');
+            $issuedAtMicroseconds = $issuedAt
+                ? ((int) $issuedAt->format('U') * 1_000_000) + (int) $issuedAt->format('u')
+                : $nowMicroseconds;
+            $elapsedMicroseconds = max(0, $nowMicroseconds - $issuedAtMicroseconds);
+            $elapsedMs = intdiv($elapsedMicroseconds, 1_000);
+            $timeLimitMicroseconds = (int) round(($quiz->seconds_per_question + $this->gracePeriod) * 1_000_000);
+            $reason = $data['reason'] ?? null;
 
-        // If client says focus_lost or timeout, or server says timeout
-        if ($reason === 'focus_lost') {
-            return $this->finishRun($run, 'failed', 'focus_lost', null, (int) ($elapsedSeconds * 1000));
-        }
+            if ($reason === 'focus_lost') {
+                return $this->finishRun($run, 'failed', 'focus_lost', null, $elapsedMs);
+            }
 
-        if ($isServerTimeout || $reason === 'timeout') {
-            return $this->finishRun($run, 'failed', 'timeout', null, (int) ($elapsedSeconds * 1000));
-        }
+            if ($elapsedMicroseconds > $timeLimitMicroseconds || $reason === 'timeout') {
+                return $this->finishRun($run, 'failed', 'timeout', null, $elapsedMs);
+            }
 
-        $displayedIndex = $data['displayed_index'] ?? null;
-        if ($displayedIndex === null) {
-            return ['error' => 'displayed_index required'];
-        }
+            $displayedIndex = $data['displayed_index'] ?? null;
+            if (! is_int($displayedIndex) || $displayedIndex < 0 || $displayedIndex > 3) {
+                return ['error' => 'A valid displayed_index is required.'];
+            }
 
-        // Map displayed index to original index
-        $questionIds = $run->question_order;
-        $currentQid = $questionIds[$run->current_index];
-        $optionOrders = $run->option_orders;
-        $perm = $optionOrders[$currentQid] ?? [0, 1, 2, 3];
-        $originalIndex = $perm[$displayedIndex] ?? $displayedIndex;
+            $questionIds = $run->question_order;
+            $currentQid = $questionIds[$run->current_index] ?? null;
+            if ($currentQid === null) {
+                return ['error' => 'Run question state is invalid.'];
+            }
 
-        $question = Question::find($currentQid);
-        $isCorrect = $question && $originalIndex === $question->correct_option_index;
+            $optionOrders = $run->option_orders;
+            $perm = $optionOrders[$currentQid] ?? null;
+            $originalIndex = is_array($perm) ? ($perm[$displayedIndex] ?? null) : null;
+            if (! is_int($originalIndex) || $originalIndex < 0 || $originalIndex > 3) {
+                return ['error' => 'Run option state is invalid.'];
+            }
 
-        $timeMsServer = (int) ($elapsedSeconds * 1000);
+            $question = Question::find($currentQid);
+            $isCorrect = $question && $originalIndex === $question->correct_option_index;
 
-        if (! $isCorrect) {
-            return $this->finishRun($run, 'failed', 'wrong_answer', $originalIndex, $timeMsServer);
-        }
+            if (! $isCorrect) {
+                return $this->finishRun($run, 'failed', 'wrong_answer', $originalIndex, $elapsedMs);
+            }
 
-        // Correct answer
-        $totalQuestions = count($questionIds);
-        $isLast = ($run->current_index + 1) >= $totalQuestions;
-
-        DB::transaction(function () use ($run, $currentQid, $originalIndex, $timeMsServer) {
             RunAnswer::create([
                 'quiz_run_id' => $run->id,
                 'question_id' => $currentQid,
                 'chosen_option_index' => $originalIndex,
                 'is_correct' => true,
                 'failure_reason' => null,
-                'time_ms' => $timeMsServer,
+                'time_ms' => $elapsedMs,
                 'created_at' => now(),
             ]);
             $run->increment('reached');
+
+            $totalQuestions = count($questionIds);
+            if (($run->current_index + 1) >= $totalQuestions) {
+                return $this->finishRunPassed($run);
+            }
+
+            $nextIndex = $run->current_index + 1;
+            $nextQid = $questionIds[$nextIndex];
+            $nextPerm = $optionOrders[$nextQid] ?? [0, 1, 2, 3];
+            $nextQ = Question::find($nextQid);
+            $nextDisplayOptions = array_map(fn ($i) => $nextQ->options[$i], $nextPerm);
+
+            $run->update([
+                'current_index' => $nextIndex,
+                'current_issued_at' => now(),
+            ]);
+
+            return [
+                'verdict' => 'correct',
+                'next_question' => [
+                    'id' => $nextQ->id,
+                    'prompt' => $nextQ->prompt,
+                    'options' => $nextDisplayOptions,
+                    'index' => $nextIndex,
+                    'total' => $totalQuestions,
+                ],
+            ];
         });
-
-        if ($isLast) {
-            return $this->finishRunPassed($run);
-        }
-
-        // Advance to next question
-        $nextIndex = $run->current_index + 1;
-        $nextQid = $questionIds[$nextIndex];
-        $nextPerm = $optionOrders[$nextQid] ?? [0, 1, 2, 3];
-        $nextQ = Question::find($nextQid);
-        $nextDisplayOptions = array_map(fn ($i) => $nextQ->options[$i], $nextPerm);
-
-        $run->update([
-            'current_index' => $nextIndex,
-            'current_issued_at' => now(),
-        ]);
-
-        return [
-            'verdict' => 'correct',
-            'next_question' => [
-                'id' => $nextQ->id,
-                'prompt' => $nextQ->prompt,
-                'options' => $nextDisplayOptions,
-                'index' => $nextIndex,
-                'total' => $totalQuestions,
-            ],
-        ];
     }
 
     public function submitCasualRun(QuizRun $run, array $answers): array
     {
-        if (! $run->isInProgress()) {
-            return ['error' => 'Run is not in progress.'];
-        }
+        return DB::transaction(function () use ($run, $answers) {
+            $run = QuizRun::query()->lockForUpdate()->findOrFail($run->id);
 
-        $quiz = $run->quiz;
-        $questions = $quiz->questions()->get()->keyBy('id');
-        $questionOrder = array_map('intval', $run->question_order ?? []);
-        $totalQuestions = count($run->question_order);
+            if (! $run->isInProgress()) {
+                return ['error' => 'Run is not in progress.'];
+            }
 
-        if (count($answers) > $totalQuestions) {
-            return ['error' => 'The answer log is invalid.'];
-        }
+            $questionOrder = array_map('intval', $run->question_order ?? []);
+            $totalQuestions = count($questionOrder);
 
-        $reached = 0;
-        $finalStatus = 'passed';
-        $finalReason = null;
-        $failedAtAnswer = null;
-        $runAnswersData = [];
-        $seenQuestionIds = [];
-
-        foreach (array_values($answers) as $position => $entry) {
-            $questionId = (int) ($entry['question_id'] ?? 0);
-            $chosenIndex = $entry['chosen_option_index'] ?? null;
-            $clientReason = $entry['reason'] ?? null;
-            $timeMs = max(0, (int) ($entry['time_ms'] ?? 0));
-
+            if (! array_is_list($answers) || count($answers) < $totalQuestions) {
+                return ['error' => 'The answer log is incomplete.'];
+            }
             if (
-                ! isset($questionOrder[$position])
-                || $questionOrder[$position] !== $questionId
-                || isset($seenQuestionIds[$questionId])
-                || ! in_array($clientReason, [null, 'timeout', 'focus_lost'], true)
+                count($answers) !== $totalQuestions
+                || ! array_is_list($questionOrder)
+                || count(array_unique($questionOrder)) !== $totalQuestions
             ) {
                 return ['error' => 'The answer log is invalid.'];
             }
 
-            $seenQuestionIds[$questionId] = true;
-            $question = $questions->get($questionId);
+            $questions = $run->quiz->questions()->get()->keyBy('id');
+            $expectedQuestionIds = array_fill_keys($questionOrder, true);
+            $seenQuestionIds = [];
+            $normalizedAnswers = [];
 
-            if ($clientReason === 'focus_lost') {
-                $finalStatus = 'failed';
-                $finalReason = 'focus_lost';
-                $failedAtAnswer = [
+            foreach ($answers as $entry) {
+                if (
+                    ! is_array($entry)
+                    || array_diff(array_keys($entry), ['question_id', 'chosen_option_index', 'reason', 'time_ms']) !== []
+                    || ! array_key_exists('question_id', $entry)
+                    || ! array_key_exists('chosen_option_index', $entry)
+                    || ! array_key_exists('time_ms', $entry)
+                ) {
+                    return ['error' => 'The answer log is invalid.'];
+                }
+
+                $questionId = $entry['question_id'];
+                $chosenIndex = $entry['chosen_option_index'];
+                $clientReason = $entry['reason'] ?? null;
+                $timeMs = $entry['time_ms'];
+
+                if (
+                    ! is_int($questionId)
+                    || ! isset($expectedQuestionIds[$questionId])
+                    || isset($seenQuestionIds[$questionId])
+                    || ! $questions->has($questionId)
+                    || ($chosenIndex !== null && (! is_int($chosenIndex) || $chosenIndex < 0 || $chosenIndex > 3))
+                    || ! in_array($clientReason, [null, 'timeout', 'focus_lost'], true)
+                    || ! is_int($timeMs)
+                    || $timeMs < 0
+                    || ($clientReason !== null && $chosenIndex !== null)
+                ) {
+                    return ['error' => 'The answer log is invalid.'];
+                }
+
+                $seenQuestionIds[$questionId] = true;
+                $normalizedAnswers[] = [$questionId, $chosenIndex, $clientReason, $timeMs];
+            }
+
+            if (count($seenQuestionIds) !== $totalQuestions) {
+                return ['error' => 'The answer log is incomplete.'];
+            }
+
+            $reached = 0;
+            $finalStatus = 'passed';
+            $finalReason = null;
+            $failedAtAnswer = null;
+            $runAnswersData = [];
+            $terminalAnswerSeen = false;
+
+            foreach ($normalizedAnswers as [$questionId, $chosenIndex, $clientReason, $timeMs]) {
+                if ($terminalAnswerSeen) {
+                    if ($chosenIndex !== null || $clientReason !== null || $timeMs !== 0) {
+                        return ['error' => 'The answer log is invalid.'];
+                    }
+
+                    continue;
+                }
+
+                if ($chosenIndex === null && $clientReason === null) {
+                    return ['error' => 'The answer log is invalid.'];
+                }
+
+                if ($clientReason !== null) {
+                    $finalStatus = 'failed';
+                    $finalReason = $clientReason;
+                    $failedAtAnswer = [
+                        'quiz_run_id' => $run->id,
+                        'question_id' => $questionId,
+                        'chosen_option_index' => null,
+                        'is_correct' => false,
+                        'failure_reason' => $clientReason,
+                        'time_ms' => $timeMs,
+                        'created_at' => now(),
+                    ];
+                    $terminalAnswerSeen = true;
+
+                    continue;
+                }
+
+                $question = $questions->get($questionId);
+                $isCorrect = $chosenIndex === $question->correct_option_index;
+
+                $runAnswersData[] = [
                     'quiz_run_id' => $run->id,
                     'question_id' => $questionId,
-                    'chosen_option_index' => null,
-                    'is_correct' => false,
-                    'failure_reason' => 'focus_lost',
+                    'chosen_option_index' => $chosenIndex,
+                    'is_correct' => $isCorrect,
+                    'failure_reason' => $isCorrect ? null : 'wrong_answer',
                     'time_ms' => $timeMs,
                     'created_at' => now(),
                 ];
-                break;
+
+                if (! $isCorrect) {
+                    $finalStatus = 'failed';
+                    $finalReason = 'wrong_answer';
+                    $terminalAnswerSeen = true;
+
+                    continue;
+                }
+
+                $reached++;
             }
 
-            if (
-                $clientReason === 'timeout'
-                || $chosenIndex === null
-                || ! is_int($chosenIndex) && ! ctype_digit((string) $chosenIndex)
-                || (int) $chosenIndex < 0
-                || (int) $chosenIndex > 3
-            ) {
-                $finalStatus = 'failed';
-                $finalReason = 'timeout';
-                $failedAtAnswer = [
-                    'quiz_run_id' => $run->id,
-                    'question_id' => $questionId,
-                    'chosen_option_index' => null,
-                    'is_correct' => false,
-                    'failure_reason' => 'timeout',
-                    'time_ms' => $timeMs,
-                    'created_at' => now(),
-                ];
-                break;
+            if ($finalStatus === 'passed' && $reached !== $totalQuestions) {
+                return ['error' => 'The answer log is incomplete.'];
             }
 
-            $chosenIndex = (int) $chosenIndex;
-            $isCorrect = $chosenIndex === $question->correct_option_index;
-
-            $runAnswersData[] = [
-                'quiz_run_id' => $run->id,
-                'question_id' => $questionId,
-                'chosen_option_index' => $chosenIndex,
-                'is_correct' => $isCorrect,
-                'failure_reason' => $isCorrect ? null : 'wrong_answer',
-                'time_ms' => $timeMs,
-                'created_at' => now(),
-            ];
-
-            if (! $isCorrect) {
-                $finalStatus = 'failed';
-                $finalReason = 'wrong_answer';
-                break;
-            }
-
-            $reached++;
-        }
-
-        if ($finalStatus === 'passed' && $reached !== $totalQuestions) {
-            return ['error' => 'The answer log is incomplete.'];
-        }
-
-        return DB::transaction(function () use ($run, $runAnswersData, $failedAtAnswer, $finalStatus, $finalReason, $reached) {
             foreach ($runAnswersData as $answerData) {
                 RunAnswer::create($answerData);
             }

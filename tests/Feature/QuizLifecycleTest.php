@@ -78,6 +78,53 @@ test('only drafts can be deleted', function () {
     $this->assertDatabaseHas('quizzes', ['id' => $published->id]);
 });
 
+test('only published or unpublished quizzes can be duplicated and the copy title is capped', function () {
+    $user = makeUser();
+    $draft = makeQuiz($user);
+    $published = makeQuiz($user, ['status' => 'published', 'title' => str_repeat('Q', 100)]);
+    $untitled = makeQuiz($user, ['status' => 'unpublished', 'title' => null]);
+    addQuestions($published, 5);
+
+    $this->actingAs($user)
+        ->postJson("/studio/quizzes/{$draft->ulid}/duplicate")
+        ->assertUnprocessable();
+
+    $response = $this->actingAs($user)
+        ->postJson("/studio/quizzes/{$published->ulid}/duplicate")
+        ->assertOk();
+
+    $copy = Quiz::where('ulid', $response->json('ulid'))->firstOrFail();
+    expect(mb_strlen($copy->title))->toBeLessThanOrEqual(80);
+    expect(str_ends_with($copy->title, ' (copy)'))->toBeTrue();
+    expect($copy->questions()->count())->toBe(5);
+
+    $untitledCopyResponse = $this->actingAs($user)
+        ->postJson("/studio/quizzes/{$untitled->ulid}/duplicate")
+        ->assertOk();
+    expect(Quiz::where('ulid', $untitledCopyResponse->json('ulid'))->value('title'))
+        ->toBe('Untitled (copy)');
+});
+
+test('quiz runs require exactly one user or guest owner', function () {
+    $user = makeUser();
+    $quiz = makeQuiz($user);
+    $attributes = [
+        'quiz_id' => $quiz->id,
+        'mode' => 'casual',
+        'question_order' => [],
+        'status' => 'in_progress',
+    ];
+
+    expect(fn () => QuizRun::create($attributes))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => QuizRun::create($attributes + [
+        'user_id' => $user->id,
+        'guest_token' => 'guest-token',
+    ]))->toThrow(InvalidArgumentException::class);
+    expect(QuizRun::create($attributes + ['guest_token' => 'guest-token']))
+        ->toBeInstanceOf(QuizRun::class);
+});
+
 // === Lifecycle: Publish Validation ===
 
 test('publish requires 5-15 questions', function () {
@@ -361,20 +408,22 @@ test('casual mode server rejects tampered answers', function () {
         'started_at' => now(),
     ]);
 
-    // Submit all wrong answers (index 1 when correct is 0)
+    // The client shuffles questions and stops logging after the first wrong answer.
     $answers = [];
-    foreach ($quiz->questions as $q) {
+    foreach (array_reverse($questionIds) as $index => $questionId) {
         $answers[] = [
-            'question_id' => $q->id,
-            'chosen_option_index' => 1, // wrong - correct is 0
-            'time_ms' => 1000,
+            'question_id' => $questionId,
+            'chosen_option_index' => $index === 0 ? 1 : null,
+            'time_ms' => $index === 0 ? 1000 : 0,
         ];
     }
 
     $this->actingAs($user)
         ->postJson("/runs/{$run->id}/submit", ['answers' => $answers])
         ->assertStatus(200)
-        ->assertJson(['verdict' => 'failed']);
+        ->assertJson(['verdict' => 'failed', 'failure_reason' => 'wrong_answer']);
+
+    expect($run->answers()->count())->toBe(1);
 });
 
 test('casual mode rejects an incomplete answer log', function () {
@@ -397,6 +446,52 @@ test('casual mode rejects an incomplete answer log', function () {
         ->assertJson(['error' => 'The answer log is incomplete.']);
 
     expect($run->fresh()->status)->toBe('in_progress');
+});
+
+test('casual submission requires the exact question set and cannot be counted twice', function () {
+    $creator = makeUser();
+    $player = makeUser();
+    $quiz = makeQuiz($creator, ['status' => 'published', 'mode' => 'casual']);
+    addQuestions($quiz, 5);
+    $questionIds = $quiz->questions()->pluck('id')->toArray();
+    $run = QuizRun::create([
+        'quiz_id' => $quiz->id,
+        'user_id' => $player->id,
+        'mode' => 'casual',
+        'question_order' => $questionIds,
+        'salt' => bin2hex(random_bytes(16)),
+        'status' => 'in_progress',
+    ]);
+
+    $validAnswers = [];
+    foreach (array_reverse($quiz->questions->all()) as $question) {
+        $validAnswers[] = [
+            'question_id' => $question->id,
+            'chosen_option_index' => $question->correct_option_index,
+            'time_ms' => 1000,
+        ];
+    }
+
+    $this->actingAs($player)
+        ->postJson("/runs/{$run->id}/submit", ['answers' => [
+            ...array_slice($validAnswers, 0, 4),
+            ['question_id' => $validAnswers[0]['question_id'], 'chosen_option_index' => 0, 'time_ms' => 0],
+        ]])
+        ->assertUnprocessable()
+        ->assertJson(['error' => 'The answer log is invalid.']);
+
+    $this->actingAs($player)
+        ->postJson("/runs/{$run->id}/submit", ['answers' => $validAnswers])
+        ->assertOk()
+        ->assertJson(['verdict' => 'passed']);
+
+    $this->actingAs($player)
+        ->postJson("/runs/{$run->id}/submit", ['answers' => $validAnswers])
+        ->assertUnprocessable()
+        ->assertJson(['error' => 'Run is not in progress.']);
+
+    expect($run->answers()->count())->toBe(5);
+    expect($quiz->fresh()->runs_count)->toBe(1);
 });
 
 // === Suggestion Scoring & Per-creator Cap ===

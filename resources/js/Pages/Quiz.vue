@@ -431,11 +431,28 @@ async function submitFailure(reason: string) {
   }
 }
 
+function completeCasualAnswerLog() {
+  const loggedQuestionIds = new Set(casualAnswerLog.value.map(answer => answer.question_id))
+
+  for (const question of casualQuestions.value) {
+    if (!loggedQuestionIds.has(question.id)) {
+      casualAnswerLog.value.push({
+        question_id: question.id,
+        chosen_option_index: null,
+        reason: null,
+        time_ms: 0,
+      })
+    }
+  }
+}
+
 async function submitCasualRun(failureReason: string | null) {
   gameState.value = 'checking'
+  completeCasualAnswerLog()
+
   try {
     const res = await axios.post(`/runs/${runId.value}/submit`, {
-      answers: casualAnswerLog.value,
+      answers: casualAnswerLog.value.map(({ is_correct, ...answer }) => answer),
     })
     handleRunEnd(res.data)
   } catch {

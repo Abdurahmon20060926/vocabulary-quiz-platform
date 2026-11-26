@@ -74,10 +74,30 @@ class RunController extends Controller
             return response()->json(['verdict' => 'abandoned', 'reason' => 'quiz_unavailable']);
         }
 
-        $data = $request->only(['displayed_index', 'reason']);
+        $hasDisplayedIndex = $request->exists('displayed_index');
+        $hasReason = $request->exists('reason');
+
+        if ($hasDisplayedIndex === $hasReason) {
+            return response()->json(['error' => 'Provide exactly one displayed index or failure reason.'], 422);
+        }
+
+        $data = $request->validate($hasDisplayedIndex
+            ? [
+                'displayed_index' => ['required', 'integer', 'between:0,3'],
+                'reason' => ['prohibited'],
+            ]
+            : [
+                'displayed_index' => ['prohibited'],
+                'reason' => ['required', 'in:timeout,focus_lost'],
+            ]);
+
+        if ($hasDisplayedIndex) {
+            $data['displayed_index'] = (int) $data['displayed_index'];
+        }
+
         $result = $this->runService->submitStrictAnswer($run, $data);
 
-        return response()->json($result);
+        return response()->json($result, isset($result['error']) ? 422 : 200);
     }
 
     public function submit(Request $request, string $runId): JsonResponse

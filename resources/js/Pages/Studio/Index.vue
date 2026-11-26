@@ -211,6 +211,7 @@ async function confirmPublish() {
 
             <!-- Duplicate -->
             <button
+              v-if="quiz.status === 'published' || quiz.status === 'unpublished'"
               @click="duplicate(quiz)"
               :disabled="!!loading"
               class="px-3 py-1.5 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg transition-colors border border-gray-700 disabled:opacity-50"

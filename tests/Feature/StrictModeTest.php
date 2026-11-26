@@ -8,9 +8,9 @@ use Illuminate\Support\Str;
 function strictUser(array $attrs = []): User
 {
     return User::create(array_merge([
-        'google_id' => 'sg_' . Str::random(8),
+        'google_id' => 'sg_'.Str::random(8),
         'name' => 'Strict Tester',
-        'email' => Str::random(8) . '@strict.example',
+        'email' => Str::random(8).'@strict.example',
     ], $attrs));
 }
 
@@ -145,6 +145,70 @@ test('answer past time limit counts as timeout', function () {
 
     expect($response->json('verdict'))->toBe('failed');
     expect($response->json('failure_reason'))->toBe('timeout');
+});
+
+test('answer at the exact time limit including grace is accepted', function () {
+    $user = strictUser();
+    $quiz = makeStrictQuiz($user);
+    ['run' => $run] = startStrictRun($quiz, $user);
+    $issuedAt = now()->startOfSecond();
+    $run->update(['current_issued_at' => $issuedAt]);
+    $this->travelTo($issuedAt->copy()->addSeconds(11)->addMilliseconds(500));
+
+    $response = $this->actingAs($user)
+        ->postJson("/runs/{$run->id}/answers", ['displayed_index' => 0])
+        ->assertOk();
+
+    expect($response->json('verdict'))->toBe('correct');
+    expect($run->answers()->first()->time_ms)->toBe(11_500);
+});
+
+test('answer just beyond the time limit including grace is a timeout', function () {
+    $user = strictUser();
+    $quiz = makeStrictQuiz($user);
+    ['run' => $run] = startStrictRun($quiz, $user);
+    $issuedAt = now()->startOfSecond();
+    $run->update(['current_issued_at' => $issuedAt]);
+    $this->travelTo($issuedAt->copy()->addSeconds(11)->addMilliseconds(501));
+
+    $response = $this->actingAs($user)
+        ->postJson("/runs/{$run->id}/answers", ['displayed_index' => 0])
+        ->assertOk();
+
+    expect($response->json('failure_reason'))->toBe('timeout');
+});
+
+test('future-issued strict question does not count as elapsed time', function () {
+    $user = strictUser();
+    $quiz = makeStrictQuiz($user);
+    ['run' => $run] = startStrictRun($quiz, $user);
+    $run->update(['current_issued_at' => now()->addSeconds(5)]);
+
+    $response = $this->actingAs($user)
+        ->postJson("/runs/{$run->id}/answers", ['displayed_index' => 0])
+        ->assertOk();
+
+    expect($response->json('verdict'))->toBe('correct');
+});
+
+test('strict answer endpoint requires exactly one valid answer input', function () {
+    $user = strictUser();
+    $quiz = makeStrictQuiz($user);
+    ['run' => $run] = startStrictRun($quiz, $user);
+
+    foreach ([
+        [],
+        ['displayed_index' => 0, 'reason' => 'timeout'],
+        ['displayed_index' => 4],
+        ['reason' => 'not-a-valid-reason'],
+    ] as $payload) {
+        $this->actingAs($user)
+            ->postJson("/runs/{$run->id}/answers", $payload)
+            ->assertUnprocessable();
+    }
+
+    expect($run->fresh()->status)->toBe('in_progress');
+    expect($run->answers()->count())->toBe(0);
 });
 
 test('focus_lost reason ends run immediately', function () {
