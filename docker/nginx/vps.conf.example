@@ -1,12 +1,14 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name quiz.example.com;
+    server_name ${DOMAIN};
 
     client_max_body_size 20M;
 
-    location /.well-known/acme-challenge/ {
-        proxy_pass http://127.0.0.1:8080;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+        try_files $uri =404;
     }
 
     location / {
