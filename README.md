@@ -58,8 +58,9 @@ For production, register the production HTTPS origin and callback separately.
 
 ## Production Deployment
 
-Production uses Docker Compose with PostgreSQL and PHP-FPM, plus host Nginx
-for HTTPS termination. Follow the deployment guide in
+Production uses Docker Compose with PostgreSQL, PHP-FPM, and Caddy for
+automatic HTTPS. Follow the beginner deployment steps in
+[docs/GO_LIVE.md](docs/GO_LIVE.md), with additional deployment notes in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Running Tests

@@ -2,9 +2,13 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-    env_file:
-      - .env.production
     environment:
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_DATABASE}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -22,8 +26,26 @@ services:
       context: .
       dockerfile: docker/app/Dockerfile.production
     restart: unless-stopped
-    env_file:
-      - .env.production
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_KEY: ${APP_KEY}
+      APP_DEBUG: ${APP_DEBUG}
+      APP_DOMAIN: ${APP_DOMAIN}
+      APP_URL: ${APP_URL}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SESSION_DRIVER: ${SESSION_DRIVER}
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE}
+      SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
+      LOG_LEVEL: ${LOG_LEVEL}
     volumes:
       - app_storage:/var/www/html/storage
       - public_assets:/shared-public
@@ -34,13 +56,27 @@ services:
   webserver:
     image: nginx:1.27-alpine
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8080:80"
     volumes:
       - public_assets:/var/www/html/public:ro
       - ./docker/nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - app
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - webserver
 
 volumes:
   app_storage:
@@ -49,3 +85,5 @@ volumes:
     name: quiz_public_assets
   pgdata:
     name: quiz_pgdata
+  caddy_data:
+  caddy_config:
