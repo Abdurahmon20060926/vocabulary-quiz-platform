@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as SocialiteUser;
 
 test('visitor is redirected to Google for sign-in', function () {
@@ -53,4 +54,15 @@ test('Google callback updates an existing user by provider id', function () {
         'name' => 'Updated Google Name',
         'email' => 'updated-google-user@example.test',
     ]);
+});
+
+test('Google callback redirects with an error when OAuth state is invalid', function () {
+    Socialite::shouldReceive('driver')
+        ->once()
+        ->with('google')
+        ->andThrow(new InvalidStateException('Invalid OAuth state.'));
+
+    $this->get('/auth/google/callback')
+        ->assertRedirect('/')
+        ->assertSessionHasErrors(['auth']);
 });

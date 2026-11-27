@@ -7,6 +7,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\InvalidStateException;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -25,7 +27,13 @@ class AuthController extends Controller
     {
         try {
             $googleUser = Socialite::driver('google')->user();
-        } catch (\Exception $e) {
+        } catch (InvalidStateException $exception) {
+            report($exception);
+
+            return redirect('/')->withErrors(['auth' => 'Google sign-in expired. Please try again.']);
+        } catch (Throwable $exception) {
+            report($exception);
+
             return redirect('/')->withErrors(['auth' => 'Google sign-in failed. Please try again.']);
         }
 
