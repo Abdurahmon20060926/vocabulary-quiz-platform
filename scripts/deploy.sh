@@ -12,7 +12,7 @@ SEED=false
 for argument in "$@"; do
     case "$argument" in
         --pull) PULL=true ;;
-        --seed) SEED=true ;;
+        --seed) SEED=true ;; # Backward compatibility: seeding is automatic and idempotent.
         *)
             printf 'Unknown option: %s\nUsage: %s [--pull] [--seed]\n' "$argument" "$0" >&2
             exit 2
@@ -103,15 +103,14 @@ done
 
 "${compose[@]}" exec -T app php artisan migrate --force
 
+# Demo quiz seeding is intentionally idempotent, so it is safe on every deploy.
+"${compose[@]}" exec -T app php artisan db:seed --force
+
 if ! "${compose[@]}" exec -T app sh -c \
     'php artisan config:cache && php artisan route:cache && php artisan view:cache'; then
     printf 'Route or view caching failed; falling back to config cache only.\n' >&2
     "${compose[@]}" exec -T app php artisan optimize:clear
     "${compose[@]}" exec -T app php artisan config:cache
-fi
-
-if [[ "$SEED" == true ]]; then
-    "${compose[@]}" exec -T app php artisan db:seed --force
 fi
 
 printf 'Deployed: https://%s\n' "$app_domain"

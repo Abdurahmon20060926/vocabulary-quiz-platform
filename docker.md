@@ -80,7 +80,8 @@ docker compose up -d --build
 ```
 
 Wait until the database is healthy, then generate the Laravel key and create
-the database tables and demo quizzes:
+the database tables and demo quizzes. This one-time first command is the
+documented way to start a fresh local database:
 
 ```bash
 docker compose ps
@@ -90,6 +91,9 @@ docker compose exec app php artisan migrate --seed
 
 Open **http://localhost:8080**. Explore should show the seeded, published,
 listed quizzes, including both strict and casual quizzes.
+
+`php artisan db:seed` is safe to run again. It uses fixed demo quiz IDs and
+does not create duplicates or modify demo quizzes that already exist.
 
 The app container has isolated Docker volumes for Laravel's writable storage
 and bootstrap cache. This avoids depending on host directory ownership and
@@ -122,6 +126,9 @@ docker compose up -d --build
 docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate --seed
 ```
+
+After the first setup, running `php artisan db:seed` is safe again because the
+demo seeder is idempotent.
 
 **Warning:** `docker compose down -v` deletes the local PostgreSQL database and
 all other named volumes for this Compose project. Use it only when you are

@@ -18,7 +18,7 @@
    - Authorized redirect URI: `https://DOMAIN/auth/google/callback`
 
    Replace `DOMAIN` with the exact hostname used for `APP_DOMAIN`.
-6. First deploy and seed the demo quizzes once. The seeder is not idempotent; do not run `--seed` again after the initial deployment:
+6. Deploy. The demo seeder is idempotent and will be run automatically after migrations:
 
    ```bash
    chmod +x scripts/deploy.sh

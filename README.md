@@ -82,6 +82,7 @@ After seeding (`php artisan db:seed`), 5 published quizzes are available:
 - Business English Vocabulary (casual, 8s)
 
 No demo user accounts — sign in with Google to create quizzes. Guest play works without an account.
+The demo seeder is idempotent, so `php artisan db:seed` can be run safely again.
 
 ## Environment Variables Reference
 
