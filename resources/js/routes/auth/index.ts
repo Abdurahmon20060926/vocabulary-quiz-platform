@@ -2,7 +2,7 @@ import { queryParams, type RouteQueryOptions, type RouteDefinition } from './../
 import google723582 from './google'
 /**
 * @see \App\Http\Controllers\AuthController::google
-* @see app/Http/Controllers/AuthController.php:13
+* @see app/Http/Controllers/AuthController.php:25
 * @route '/auth/google/redirect'
 */
 export const google = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -17,7 +17,7 @@ google.definition = {
 
 /**
 * @see \App\Http\Controllers\AuthController::google
-* @see app/Http/Controllers/AuthController.php:13
+* @see app/Http/Controllers/AuthController.php:25
 * @route '/auth/google/redirect'
 */
 google.url = (options?: RouteQueryOptions) => {
@@ -26,7 +26,7 @@ google.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AuthController::google
-* @see app/Http/Controllers/AuthController.php:13
+* @see app/Http/Controllers/AuthController.php:25
 * @route '/auth/google/redirect'
 */
 google.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -36,7 +36,7 @@ google.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 
 /**
 * @see \App\Http\Controllers\AuthController::google
-* @see app/Http/Controllers/AuthController.php:13
+* @see app/Http/Controllers/AuthController.php:25
 * @route '/auth/google/redirect'
 */
 google.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({

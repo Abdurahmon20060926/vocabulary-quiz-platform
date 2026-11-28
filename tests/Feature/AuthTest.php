@@ -8,7 +8,11 @@ use Laravel\Socialite\Two\User as SocialiteUser;
 test('visitor is redirected to Google for sign-in', function () {
     Socialite::fake('google');
 
-    $this->get('/auth/google/redirect')->assertRedirect();
+    $response = $this->get('/auth/google/redirect');
+
+    $response->assertRedirect();
+    expect(config('services.google.redirect'))
+        ->toBe('http://localhost:8080/auth/google/callback');
 });
 
 test('Google callback creates and authenticates a new user', function () {
@@ -61,6 +65,17 @@ test('Google callback redirects with an error when OAuth state is invalid', func
         ->once()
         ->with('google')
         ->andThrow(new InvalidStateException('Invalid OAuth state.'));
+
+    $this->get('/auth/google/callback')
+        ->assertRedirect('/')
+        ->assertSessionHasErrors(['auth']);
+});
+
+test('Google callback redirects with an error when Socialite throws', function () {
+    Socialite::shouldReceive('driver')
+        ->once()
+        ->with('google')
+        ->andThrow(new RuntimeException('Google is unavailable.'));
 
     $this->get('/auth/google/callback')
         ->assertRedirect('/')
